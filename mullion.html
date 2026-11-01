@@ -1,0 +1,3025 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>立柱（竖梃）承载力计算</title>
+  <style>
+    :root {
+      --bg: #f2f4f9;
+      --card: #ffffff;
+      --text: #111111;
+      --muted: #6b7280;
+      --line: rgba(0, 0, 0, .10);
+      --ok: #1a7f37;
+      --ng: #c62828;
+
+      /* 输入区：蓝 */
+      --in: #2f6feb;
+      --in-soft: #e9f0ff;
+      --in-band: #e8eefb;
+      --in-line: #d2dff7;
+      /* 输出区：绿 */
+      --out: #0e7c66;
+      --out-soft: #e5f4f0;
+      --out-line: #c8e5dc;
+      --out-band: #edf7f4;
+    }
+    * { box-sizing: border-box; }
+    /* 必须 !important：.row/.grid2 自己带 display，会盖掉 UA 的 [hidden]{display:none} */
+    [hidden] { display: none !important; }
+    body {
+      margin: 0;
+      padding: 0 24px 72px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: 14px;
+    }
+
+    .topbar {
+      position: sticky; top: 0; z-index: 10;
+      display: flex; align-items: center; gap: 12px;
+      padding: 16px 0; margin-bottom: 20px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--line);
+    }
+    .topbar h1 { font-size: 18px; font-weight: 800; margin: 0; letter-spacing: .3px; }
+    .topbar .spacer { flex: 1; }
+    .back { color: var(--muted); text-decoration: none; font-size: 13px; }
+    .back:hover { color: var(--text); }
+
+    main {
+      display: grid;
+      grid-template-columns: 380px minmax(0, 1fr);
+      gap: 20px;
+      align-items: start;
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, .05);
+      overflow: hidden;
+    }
+    .card + .card { margin-top: 16px; }
+    .card > h2 {
+      margin: 0;
+      padding: 12px 16px;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: .5px;
+      color: var(--muted);
+      background: #fbfbfd;
+      border-bottom: 1px solid var(--line);
+    }
+    .card > .body { padding: 14px 16px 16px; }
+
+    /* ===== 输入行 ===== */
+    .row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .row:last-child { margin-bottom: 0; }
+    .row label { flex: 0 1 auto; font-size: 13px; color: #333; white-space: nowrap; }
+    .row .unit {
+      flex: none; width: 34px; font-size: 12px;
+      color: var(--muted); text-align: right;
+    }
+    .row > input[type="number"], .row > select {
+      width: auto; flex: 1 1 96px; min-width: 0;
+    }
+
+    /* 截面图标：原生单选框保留方向键切换与读屏名称。 */
+    .section-options { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+    .section-option { position: relative; display: block; cursor: pointer; }
+    .section-option input {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+    }
+    .section-icon {
+      display: flex; align-items: center; justify-content: center;
+      width: 44px; height: 44px; border: 1px solid var(--in-line); border-radius: 8px;
+      background: #fff; color: #657793;
+    }
+    .section-icon svg { display: block; width: 38px; height: 38px; }
+    .section-option:hover .section-icon { border-color: var(--in); color: var(--in); }
+    .section-option input:checked + .section-icon {
+      background: var(--in-soft); color: var(--in); border-color: var(--in);
+      box-shadow: inset 0 0 0 1px var(--in);
+    }
+    .section-option input:focus-visible + .section-icon { outline: 2px solid var(--in); outline-offset: 2px; }
+
+    /* ===== 输入 / 输出 分区配色 ===== */
+    .inputs, .outputs { min-width: 0; }
+    .inputs {
+      background: var(--in-band);
+      border: 1px solid var(--in-line);
+      border-radius: 14px;
+      padding: 14px;
+    }
+    .outputs {
+      background: var(--out-band);
+      border: 1px solid var(--out-line);
+      border-radius: 14px;
+      padding: 14px;
+    }
+
+    :is(.inputs > .card, .inputs > .mode-content > .card) {
+      border-left: 3px solid var(--in);
+      box-shadow: 0 3px 10px rgba(20, 50, 100, .05);
+    }
+    :is(.inputs > .card, .inputs > .mode-content > .card) > h2 {
+      background: var(--in-soft); color: var(--in);
+      border-bottom-color: var(--in-line);
+    }
+    :is(.outputs > .card, .outputs > .mode-content > .card) {
+      border-left: 3px solid var(--out);
+      box-shadow: 0 3px 10px rgba(10, 60, 50, .05);
+    }
+    :is(.outputs > .card, .outputs > .mode-content > .card) > h2 {
+      background: var(--out-soft); color: var(--out);
+      border-bottom-color: var(--out-line);
+    }
+
+    :is(.outputs > .card, .outputs > .mode-content > .card).lead > h2 { font-size: 14px; letter-spacing: 1px; }
+    :is(.outputs > .card, .outputs > .mode-content > .card).lead > .verdict {
+      background: linear-gradient(180deg, #eef8f5 0%, #ffffff 100%);
+    }
+
+    .colcap {
+      display: inline-flex; align-items: center; gap: 7px;
+      margin-bottom: 12px; padding: 5px 13px; border-radius: 999px;
+      font-size: 12px; font-weight: 800; letter-spacing: 1px;
+    }
+    .colcap::before {
+      content: ''; width: 7px; height: 7px; border-radius: 50%;
+      background: currentColor;
+    }
+    .colcap.in  { background: #fff; color: var(--in);  box-shadow: 0 1px 4px rgba(20, 50, 100, .10); }
+    .colcap.out { background: #fff; color: var(--out); box-shadow: 0 1px 4px rgba(20, 50, 100, .10); }
+
+    input[type="number"], select {
+      width: 100%;
+      padding: 7px 9px;
+      border: 1px solid #d5dded;
+      border-radius: 8px;
+      font: inherit;
+      color: var(--text);
+      background: #fcfdff;
+      font-variant-numeric: tabular-nums;
+    }
+    input[type="number"] { text-align: right; }
+    select { cursor: pointer; }
+    input[type="number"]:focus, select:focus {
+      outline: 2px solid #cfdcff; border-color: var(--in); background: #fff;
+    }
+
+    /* 种类下拉的文字较长，左列（种类）给更多宽度，右列（厚度）只需容纳数字 */
+    .grid2 {
+      display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
+      gap: 10px 10px; align-items: start;
+    }
+    .grid2 label {
+      display: block; font-size: 12px; color: var(--muted);
+      margin-bottom: 4px; white-space: nowrap;
+    }
+    .grid2 > div { min-width: 0; }
+
+    /* 构造层次分隔条 */
+    .seam {
+      display: flex; align-items: center; gap: 8px;
+      margin: 14px 0; font-size: 11px; font-weight: 800; letter-spacing: 1.5px;
+      color: var(--muted);
+    }
+    .seam::before, .seam::after {
+      content: ''; flex: 1; height: 1px; background: var(--line);
+    }
+    .seam.ig { color: var(--in); }
+    .seam.pvb {
+      margin: 8px 0; color: #9a7b14; letter-spacing: 1px;
+    }
+    .seam.pvb::before, .seam.pvb::after { background: repeating-linear-gradient(90deg, #e6d9b8 0 4px, transparent 4px 8px); }
+
+    .hint { font-size: 12px; color: var(--muted); line-height: 1.7; margin: 8px 0 0; }
+
+    details { margin-top: 4px; }
+    details > summary {
+      cursor: pointer; color: var(--muted); font-size: 12px; padding: 6px 0;
+      user-select: none;
+    }
+
+    button {
+      appearance: none; border: 0; padding: 8px 14px; border-radius: 10px;
+      font: inherit; font-weight: 700; cursor: pointer; background: #111; color: #fff;
+    }
+    button.ghost { background: #fff; color: #111; border: 1px solid var(--line); }
+    button:active { transform: scale(.98); }
+
+    /* 输入列顶部：左侧 INPUT 徽标，右侧 基础/高级 iOS 风格滑动开关 */
+    .inhead {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 10px; margin-bottom: 12px;
+    }
+    .inhead .colcap { margin-bottom: 0; }
+    .ios { display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto; }
+    .ios-lbl {
+      font-size: 11px; font-weight: 800; letter-spacing: .5px;
+      color: var(--muted); cursor: pointer; user-select: none;
+      transition: color .18s ease;
+    }
+    .ios-lbl.on { color: var(--in); }
+    .ios-sw {
+      position: relative; flex: 0 0 auto;
+      width: 40px; height: 22px; padding: 0; border: 0; border-radius: 999px;
+      background: #c3c3c9;                     /* 基础：暗 */
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .07);
+      transition: background .22s ease;
+    }
+    .ios-sw::after {
+      content: ''; position: absolute; top: 2px; left: 2px;
+      width: 18px; height: 18px; border-radius: 50%; background: #fff;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, .28);
+      transition: transform .22s cubic-bezier(.32, .72, 0, 1);
+    }
+    .ios-sw.on { background: var(--in); }       /* 高级：亮 */
+    .ios-sw.on::after { transform: translateX(18px); }
+    .ios-sw:focus-visible { outline: 2px solid #cfdcff; outline-offset: 2px; }
+    .ios-sw:active { transform: none; }   /* 覆盖 button:active 的缩放，开关不该抖 */
+
+    .verdict { display: flex; gap: 28px; flex-wrap: wrap; padding: 16px; }
+    .verdict .item .k { font-size: 12px; color: var(--muted); }
+    .verdict .item .v { font-size: 26px; font-weight: 900; line-height: 1.2; }
+    .verdict .item .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .badge {
+      display: inline-block; padding: 3px 10px; border-radius: 999px;
+      font-size: 12px; font-weight: 800; color: #fff; background: var(--ok);
+    }
+    .badge.ng { background: var(--ng); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--line); }
+    th {
+      color: var(--muted); font-weight: 700; font-size: 12px;
+      background: #fbfbfd; white-space: nowrap;
+    }
+    th:first-child, td:first-child { text-align: left; }
+    tbody tr:last-child td { border-bottom: 0; }
+    td.num { font-variant-numeric: tabular-nums; }
+    tbody tr.ctrl td { background: #fffbe8; }
+    .ok { color: var(--ok); font-weight: 700; }
+    .ng { color: var(--ng); font-weight: 700; }
+
+    .kv { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .kv .k { font-size: 12px; color: var(--muted); }
+    .kv .v { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+    footer { max-width: 1280px; margin: 24px auto 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
+    footer .ver { display: block; margin-top: 6px; opacity: .7; font-variant-numeric: tabular-nums; }
+
+    /* ===== 公式区 ===== */
+    .card > h2.fxhead { display: flex; align-items: center; gap: 8px; }
+    .fxhead .spacer { flex: 1; }
+    button.mini { padding: 4px 10px; font-size: 12px; font-weight: 700; border-radius: 8px; }
+    .fx-tools { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 10px; }
+
+    .fxstep { border-bottom: 1px solid var(--line); }
+    .fxstep:last-child { border-bottom: 0; }
+    .fxstep > summary {
+      cursor: pointer; user-select: none;
+      padding: 10px 2px; font-size: 13px; font-weight: 700; color: #222;
+      list-style: none;
+    }
+    .fxstep > summary::-webkit-details-marker { display: none; }
+    .fxstep > summary::before {
+      content: '+'; display: inline-block; width: 18px;
+      color: var(--muted); font-weight: 900;
+    }
+    .fxstep[open] > summary::before { content: '\2212'; }
+    .fxbody { padding: 2px 0 14px 18px; overflow-x: auto; }
+    .fxnote { margin: 0 0 10px; font-size: 12px; color: var(--muted); line-height: 1.75; }
+
+    .fxl {
+      display: grid; grid-template-columns: 56px minmax(0, 1fr);
+      padding: 9px 0; border-top: 1px dashed rgba(0, 0, 0, .07);
+    }
+    .fxl:first-of-type { border-top: 0; }
+    .fxtag {
+      grid-row: span 2; padding-top: 3px;
+      font-size: 11px; font-weight: 800; color: var(--muted);
+    }
+    .fx {
+      font-family: "Cambria Math", Cambria, "Times New Roman", Georgia, serif;
+      font-size: 15.5px; line-height: 1.9;
+    }
+    .fx-sym { font-size: 14.5px; color: var(--muted); }
+    .fx-mi { font-style: italic; }
+    .fx-mn, .fx-mo, .fx-rm, .fx-rm * { font-style: normal; }
+    .fx-thin { display: inline-block; width: .22em; }
+    .fx-space { display: inline-block; width: .6em; }
+    .fx-frac {
+      display: inline-flex; flex-direction: column;
+      text-align: center; vertical-align: middle; margin: 0 .18em;
+    }
+    .fx-num { padding: 0 .35em; border-bottom: 1px solid currentColor; }
+    .fx-den { padding: 0 .35em; }
+    .fx-delim { font-size: 1.15em; }
+    .fx-sqrt { display: inline-flex; align-items: flex-start; margin: 0 .1em; }
+    .fx-rad { transform: scaleY(1.2); transform-origin: center; }
+    .fx-radicand { border-top: 1px solid currentColor; padding: 0 .2em; }
+    .fx sup { font-size: .72em; vertical-align: .5em; line-height: 0; }
+    .fx sub { font-size: .72em; vertical-align: -.28em; line-height: 0; }
+    .fxeq { color: var(--muted); margin: 0 .2em; }
+    .fxres { color: #1a4fd6; font-weight: 700; }
+    .fxres.ok { color: var(--ok); }
+    .fxres.ng { color: var(--ng); }
+
+    @media print {
+      body { background: #fff; padding: 0; }
+      .topbar { position: static; border-bottom: 0; }
+      .topbar button, .back { display: none; }
+      .card { box-shadow: none; border-color: #ddd; break-inside: avoid; }
+      main { display: block; }
+      .colcap { display: none; }
+      .ios { display: none; }
+      .inputs, .outputs {
+        background: none; border: 0; border-radius: 0; padding: 0;
+      }
+      :is(.inputs > .card, .inputs > .mode-content > .card), :is(.outputs > .card, .outputs > .mode-content > .card) { box-shadow: none; border-left-width: 1px; }
+      :is(.inputs > .card, .inputs > .mode-content > .card) > h2, :is(.outputs > .card, .outputs > .mode-content > .card) > h2 {
+        background: #f4f4f6; color: #333;
+      }
+      :is(.outputs > .card, .outputs > .mode-content > .card).lead > .verdict { background: #fff; }
+      main > .inputs { margin-bottom: 16px; }
+      .inputs .card > .body { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 24px; }
+      .inputs details { display: none; }
+      footer { display: none; }
+      .fx-tools, .topbar button { display: none; }
+      .fxstep { border-color: #ddd; }
+      .fxstep > summary::before { display: none; }
+      .fxbody { padding-left: 0; overflow: visible; }
+      .fx-frac { vertical-align: middle; }
+    }
+  
+/* Glass-rib mode: shared page shell, isolated calculator panels. */
+[hidden]{display:none!important}
+.inhead{gap:7px}
+.inhead .ios{gap:5px}
+.rib-toggle{font-size:11px;line-height:20px;padding:2px 8px;border:1px solid var(--in-line);border-radius:6px;background:#fff;color:var(--in);white-space:nowrap}
+.rib-toggle[aria-pressed="true"]{background:var(--in);border-color:var(--in);color:#fff}
+body.rib-mode .ios-lbl.on{color:var(--muted)}
+body.rib-mode .ios-sw{opacity:.5}
+.rib-panel .diagram{margin:8px 0 14px;border:1px solid var(--in-line);border-radius:10px;background:#fcfdff;padding:5px 0}
+.rib-panel .diagram svg{display:block;width:100%;height:auto}
+.rib-panel .dbox{gap:3px}
+.rib-panel .dbox input{font-size:15.5px;height:29px;min-width:0;padding:2px 4px}
+.rib-panel .dbox select{font-size:15.5px;font-weight:650;height:30px;padding:2px 5px;border-radius:5px}
+.rib-panel .source-note{font-size:12px;line-height:1.75}
+.rib-panel .source-note p{margin:0 0 13px}
+.rib-panel .ok{color:var(--ok)}.rib-panel .ng{color:var(--ng)}
+.rib-panel .properties{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}
+.rib-panel .properties span{display:block;color:var(--muted);font-size:12px;margin-bottom:5px}
+.rib-panel .properties b{font-size:14px}
+.rib-panel table{width:100%;border-collapse:collapse;font-size:13px}
+.rib-panel td,.rib-panel th{padding:10px 7px;border-bottom:1px solid var(--line);text-align:left}
+.rib-panel td:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}
+.rib-panel .fxbody{overflow-x:auto}.rib-panel .fx{min-width:max-content}.rib-panel .fxl{min-width:100%}
+.fx-bar{text-decoration:overline}
+.rib-panel button:disabled{opacity:.4;cursor:not-allowed}
+.rib-result-note{margin:0 0 16px;color:var(--muted);font-size:13px}
+.rib-utilization{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:20px 24px}
+.rib-utilization .k{font-size:12px;color:var(--muted);margin-bottom:6px}
+.rib-utilization .v{font-size:26px;font-weight:900;line-height:1.2;font-variant-numeric:tabular-nums}
+.rib-utilization .sub{font-size:12px;color:var(--muted);margin-top:5px}
+@media(max-width:400px){
+ .inhead{gap:4px}.inhead .ios{gap:4px}.inhead .colcap{font-size:9px;letter-spacing:0;padding:4px 6px}
+ .inhead .ios-sw{width:34px}.inhead .ios-sw.on::after{transform:translateX(12px)}
+ .rib-toggle{font-size:10px;padding:2px 6px}
+}
+@media print{
+ .rib-toggle{display:none}
+ .rib-panel .diagram{overflow:visible}
+ .rib-panel .source-note{font-size:11px}
+ .rib-panel .fx{min-width:0;white-space:normal;font-size:13px}
+ .rib-panel .fxbody{overflow:visible}
+ .rib-panel .fxstep,.rib-panel .card{break-inside:auto}
+ .rib-panel .fxl{break-inside:avoid}
+ .rib-panel details{display:block}
+ .rib-panel .diagram svg{max-height:330px}
+ .rib-panel .fx-frac{max-width:100%}
+ body.rib-mode .inputs .card>.body{display:block}
+ body.rib-mode footer{display:block}
+}
+</style>
+  <style>
+    /* ===== 本页新增 ===== */
+    .secprev {
+      margin: 10px 0 12px; border: 1px solid var(--in-line);
+      border-radius: 10px; background: #fff; padding: 6px 4px 2px;
+    }
+    .secprev svg { display: block; width: 100%; height: auto; }
+
+    /* ===== 标注内嵌输入框（尺寸直接改，不再另起输入区） ===== */
+    .dbox {
+      display: flex; align-items: center; justify-content: center;
+      gap: 3px; width: 100%; height: 100%; box-sizing: border-box;
+    }
+    .dbox i {
+      font-style: normal; font-size: 13.5px; color: var(--muted);
+      font-weight: 600; letter-spacing: .2px; flex: 0 0 auto;
+    }
+    .dbox input {
+      width: 100%; min-width: 0; margin: 0; padding: 1px 4px;
+      font: 700 14.5px/1.25 ui-monospace, "SFMono-Regular", Consolas, monospace;
+      font-variant-numeric: tabular-nums;
+      color: #16325c; text-align: center;
+      background: #fff; border: 1px solid #c2d2ee; border-radius: 5px;
+      box-sizing: border-box; outline: none;
+    }
+    .dbox input:focus {
+      border-color: #2f6feb; box-shadow: 0 0 0 2px rgba(47,111,235,.15);
+    }
+    /* 系数覆盖：手动改过的项标出来，一眼看出哪些不是自动值 */
+    #advBox input[data-auto="0"] { background: #fffdf3; border-color: #e2c98f; }
+
+    /* 值超出可用范围（如双跨的 a 不在 0~L 内）时标黄，鼠标悬停给原因 */
+    .dbox input.warn {
+      border-color: #e0a400; background: #fff9ec;
+    }
+    /* 宽度按"能完整显示两位小数"给：内容区能放下 4~5 个字符 */
+    .dbox input.dim-w { max-width: 46px; }
+    .dbox input.dim-l { max-width: 58px; }
+    @media print {
+      .dbox input { border-color: transparent; background: transparent; }
+    }
+
+    .beamprev {
+      margin: 10px 0 4px; border: 1px solid #e3e7f0;
+      border-radius: 10px; background: #fcfdff; padding: 4px;
+    }
+    .beamprev svg { display: block; width: 100%; height: auto; }
+
+    /* 截面特性小表 */
+    .secgrid {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 8px 12px; font-size: 12px;
+    }
+    .secgrid .cell { border-bottom: 1px dashed rgba(0,0,0,.07); padding-bottom: 5px; }
+    .secgrid .k { color: var(--muted); font-size: 11.5px; }
+    .secgrid .v { font-weight: 700; font-variant-numeric: tabular-nums; }
+    .secgrid .v span { font-weight: 500; color: var(--muted); font-size: 11px; margin-left: 2px; }
+
+    .matgrid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 6px 10px; margin-top: 8px; font-size: 12px;
+    }
+    .matgrid .k { color: var(--muted); font-size: 11.5px; }
+    .matgrid .v { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+    .tagrow { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .tag {
+      font-size: 11px; padding: 2px 8px; border-radius: 999px;
+      background: var(--in-soft); color: var(--in); font-weight: 700;
+    }
+    .tag.warn { background: #fff4e5; color: #9a5b00; }
+
+    .dep {
+      margin-top: 10px; padding: 8px 10px; border-radius: 8px;
+      background: #fffbe8; border: 1px solid #f0e2b0;
+      font-size: 12px; line-height: 1.7; color: #6b5a12;
+    }
+    .dep b { color: #8a6d00; }
+    td.mono, .mono { font-variant-numeric: tabular-nums; }
+    .small { font-size: 12px; }
+
+    /* ===== 基础模式：关掉所有小字提示 ===== */
+    body.m-basic:not(.rib-mode) .hint,
+    body.m-basic:not(.rib-mode) .fxnote,
+    body.m-basic:not(.rib-mode) .dep,
+    body.m-basic:not(.rib-mode) .fx-tools { display: none !important; }
+
+    /* ===== 打印：本页结构比玻璃页复杂，覆盖成单列流式布局 ===== */
+    @media print {
+      .inputs .card > .body { display: block !important; }
+      .secprev { max-width: 330px; margin-top: 6px; }
+      .beamprev { max-width: 330px; }
+      .secmeta { max-width: 330px; }
+      .matgrid { grid-template-columns: repeat(6, 1fr); }
+      .secgrid { grid-template-columns: repeat(4, 1fr); }
+      .grid2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .card + .card { margin-top: 12px; }
+      .secprev svg, .beamprev svg { max-height: 190px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <a class="back" href="index.html">← 返回首页</a>
+    <h1>立柱（竖梃）承载力计算</h1>
+    <span class="spacer"></span>
+    <button class="ghost" id="rib-export" hidden>导出 LaTeX</button>
+    <button class="ghost" id="printBtn">打印 / 存 PDF</button>
+  </div>
+
+  <main>
+    <!-- ============ 输入 ============ -->
+    <div class="inputs">
+      <div class="inhead">
+        <div class="colcap in">输入 INPUT</div>
+        <div class="ios">
+          <span class="ios-lbl on" id="lblBasic">基础</span>
+          <button type="button" class="ios-sw" id="modeSw"
+                  role="switch" aria-checked="false"
+                  title="基础：圆管/箱型/T形 · Q355 或 6063-T6 · 单跨与双跨（地区、面板、地震按常规取值）　／　高级：13 种截面 · 17 种材料 · 单跨/双跨/悬臂/飞边悬臂 · 地区与系数全部可调"></button>
+          <span class="ios-lbl" id="lblAdv">高级</span>
+          <button type="button" class="rib-toggle" id="glassRibBtn" aria-pressed="false" aria-controls="rib-inputs rib-outputs" title="切换玻璃肋计算；再次点击返回普通立柱">玻璃肋</button>
+        </div>
+      </div>
+
+      <div class="mode-content" id="metal-inputs">
+      <div class="card">
+        <h2>截面</h2>
+        <div class="body">
+          <div class="section-options" id="sec" role="radiogroup" aria-label="截面型式"></div>
+          <div class="secprev" id="secPrev"></div>
+          <p class="hint" id="secHint"></p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>材料</h2>
+        <div class="body">
+          <div class="row">
+            <label for="mat">牌号</label>
+            <select id="mat" style="flex:1 1 auto"></select>
+          </div>
+          <div class="matgrid" id="matInfo"></div>
+          <p class="hint" id="matHint"></p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>受力形式</h2>
+        <div class="body">
+          <div class="row">
+            <label for="form">形式</label>
+            <select id="form" style="flex:1 1 auto"></select>
+          </div>
+          <div class="row">
+            <label for="B">立柱间距 B</label>
+            <input type="number" id="B" value="1.5" step="0.1" min="0.1" />
+            <span class="unit">m</span>
+          </div>
+          <div class="beamprev" id="beamPrev"></div>
+          <p class="hint" id="formHint"></p>
+        </div>
+      </div>
+
+      <div class="card" id="cardLoad">
+        <h2>荷载</h2>
+        <div class="body">
+          <div class="row" id="rowReg">
+            <label for="reg">项目地区</label>
+            <select id="reg">
+              <option value="全国">全国（GB 50009）</option>
+              <option value="广东" selected>广东（省标）</option>
+              <option value="海外">海外（γ = 1.0）</option>
+            </select>
+          </div>
+          <div class="grid2" id="rowPanel" style="margin-top:2px">
+            <div>
+              <label for="pm">面板材质</label>
+              <select id="pm"></select>
+            </div>
+            <div>
+              <label for="pt">面板厚度</label>
+              <div class="row" style="margin-bottom:0;gap:6px">
+                <input type="number" id="pt" value="40" step="1" min="0" />
+                <span class="unit">mm</span>
+              </div>
+            </div>
+          </div>
+          <div class="row" id="rowIg" style="margin-top:10px">
+            <label for="ig">抗震设防</label>
+            <select id="ig" style="flex:1 1 auto"></select>
+          </div>
+
+          <details id="advBox" hidden>
+            <summary>系数与限值覆盖</summary>
+            <div class="grid2" style="margin-top:8px">
+              <div>
+                <label for="gG">永久 γ<sub>G</sub></label>
+                <div class="row" style="margin-bottom:0"><input type="number" id="gG" step="0.05" /></div>
+              </div>
+              <div>
+                <label for="gW">风 γ<sub>W</sub></label>
+                <div class="row" style="margin-bottom:0"><input type="number" id="gW" step="0.05" /></div>
+              </div>
+              <div>
+                <label for="gE">地震 γ<sub>E</sub></label>
+                <div class="row" style="margin-bottom:0"><input type="number" id="gE" step="0.05" /></div>
+              </div>
+              <div>
+                <label for="gL">活载 γ<sub>L</sub></label>
+                <div class="row" style="margin-bottom:0"><input type="number" id="gL" value="1.5" step="0.05" /></div>
+              </div>
+              <div>
+                <label for="psL">ψ<sub>L</sub></label>
+                <div class="row" style="margin-bottom:0"><input type="number" id="psL" value="0.7" step="0.05" /></div>
+              </div>
+              <div>
+                <label for="psW">ψ<sub>W</sub></label>
+                <div class="row" style="margin-bottom:0"><input type="number" id="psW" value="0.6" step="0.05" /></div>
+              </div>
+              <div>
+                <label for="div">挠度分母 1/n</label>
+                <div class="row" style="margin-bottom:0"><input type="number" id="div" step="10" /></div>
+              </div>
+              <div>
+                <label for="limAbs">挠度绝对限值</label>
+                <div class="row" style="margin-bottom:0;gap:6px">
+                  <input type="number" id="limAbs" value="30" step="5" />
+                  <span class="unit">mm</span>
+                </div>
+              </div>
+              <div>
+                <label for="fMan">强度取值 f</label>
+                <div class="row" style="margin-bottom:0;gap:6px">
+                  <input type="number" id="fMan" placeholder="自动" step="5" />
+                  <span class="unit">MPa</span>
+                </div>
+              </div>
+              <div>
+                <label for="tcMan">厚度分组 t*</label>
+                <div class="row" style="margin-bottom:0;gap:6px">
+                  <input type="number" id="tcMan" placeholder="自动" step="1" />
+                  <span class="unit">mm</span>
+                </div>
+              </div>
+            </div>
+            <p class="hint" style="margin-top:10px">
+              框内是当前自动取值（随地区、材料变化）；改过的项会锁定，清空即交回自动。厚度分组只影响碳钢（GB 50017-2017 表 4.4.1）。
+            </p>
+          </details>
+        </div>
+      </div>
+      </div>
+      <div class="mode-content rib-panel" id="rib-inputs" hidden>
+
+<div class="card"><h2>玻璃肋截面</h2><div class="body"><div id="rib-sectionFigure" class="diagram"></div><p class="hint">输入原配置片数及共用的单片厚度、种类；截面图和计算均按减去一片后的剩余玻璃，标注剩余总厚度。</p></div></div>
+<div class="card"><h2>计算模型与荷载</h2><div class="body"><div id="rib-modeBox"></div><div id="rib-systemFigure" class="diagram"></div><div id="rib-choices"></div><details><summary>面板重力、地震与变形</summary><div id="rib-loadFields"></div><p class="hint">地震按完整面板＋玻璃肋的重量自动计算。正负风按相同绝对值包络。L/360、自重附加系数 1.1 沿用参考书的设计假定，可按项目修改。</p></details></div></div>
+<div class="card" id="rib-supportCard"><h2>面板侧向支撑</h2><div class="body"><div id="rib-supportFigure" class="diagram"></div><p class="hint">仅适用于面板与肋通过硅酮结构胶连续、可靠粘接。破损工况有效粘接宽度取输入值与减片后总厚度的较小值。</p></div></div>
+<div class="card"><h2>材料参数</h2><div class="body"><div class="matgrid"><div><span class="k">E · MPa</span><div class="v">72,000</div></div><div><span class="k">ν</span><div class="v">0.20</div></div><div><span class="k">γ · kN/m³</span><div class="v">25.6</div></div></div><details><summary>指定模量</summary><div id="rib-moduli"></div></details><p class="hint">按已确认假定，胶片 G=11.3 MPa、结构胶 E=0.4 MPa 沿用原书，短期与长期共用。G 是指定参数，不随 SGP / PVB 名称自动取值。</p></div></div>
+<div class="card"><h2>计算依据与设计假定</h2><div class="body source-note">
+<p><b>T/CECS 1099-2022《玻璃结构工程技术规程》</b><br>5.2.5：弱轴等效刚度；5.3.4、5.3.6～5.3.7：强度与弯扭稳定；5.4.2～5.4.3：轴压稳定；5.5.1～5.5.2：轴压比与压弯；附录 A：临界弯矩与扭转刚度；B.0.1～B.0.2：连续胶缝约束下的临界轴力。</p>
+<p><b>JGJ 113-2015《建筑玻璃应用技术规程》</b><br>表 4.1.9、4.1.10：短期和长期玻璃强度。本章强度用端面值，稳定用边缘值；稳定计算的强度标准值采用边缘设计值×1.667。</p>
+<p><b>荷载口径</b><br>风荷载标准值由图中输入，取值依据 GB 50009-2012，广东项目可按 DBJ 15-101-2014。组合沿用已确认的参考文件口径，γG=1.3、γW=1.5，γE 国标1.3／粤标1.4；分别计算风主导和地震主导组合。</p>
+<p><b>仅验算减去一片</b><br>直接按配置片数 n−1 计算截面面积、惯性矩及稳定参数，不另算完整片数的验算工况。荷载仍取完整构造的全设计荷载，包含完整玻璃肋自重。采用指定的等厚夹层重组模型，未考虑具体破片位置的连接退化。</p>
+<p><b>适用边界</b><br>竖直、等截面、单跨两端简支、均布水平荷载；端部应具有可靠抗扭约束。吊式验弯扭稳定，坐式还验轴压比≤0.5及压弯。混合持荷另保留原书更严格的线性轴项包络。</p>
+<p>本章结论限玻璃肋构件的强度、风挠度与整体稳定。孔洞、拼接、支座、吊夹具、结构胶强度及其提供支撑的可靠性另行验算；未包含附录 B.0.3 的胶缝强度承载力。</p>
+</div></div>
+      </div>
+    </div>
+
+    <!-- ============ 输出 ============ -->
+    <div class="outputs">
+      <div class="colcap out">输出 OUTPUT</div>
+
+      <div class="mode-content" id="metal-outputs">
+      <div class="card lead">
+        <h2>结论</h2>
+        <div class="verdict" id="verdict"></div>
+      </div>
+
+      <div class="card">
+        <h2>计算条件</h2>
+        <div class="body">
+          <div class="kv" id="condBox" style="grid-template-columns:repeat(4,1fr)"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>截面几何特性</h2>
+        <div class="body">
+          <div class="secgrid" id="secKv"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>荷载与内力</h2>
+        <div class="body">
+          <div class="kv" id="loadKv"></div>
+          <div id="depNote"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>挠度校核</h2>
+        <div class="body" id="deflBox"></div>
+      </div>
+
+      <div class="card">
+        <h2>强度校核</h2>
+        <div class="body" id="strBox"></div>
+      </div>
+
+      <div class="card">
+        <h2 class="fxhead">计算公式（分步展开）<span class="spacer"></span></h2>
+        <div class="body">
+          <p class="fxnote" style="margin:-2px 0 10px">
+            每步先给通式，再给代入式与结果。线荷载 kN/m 与 N/mm 数值相同，长度 mm，应力 MPa。
+          </p>
+          <div class="fx-tools">
+            <button class="mini ghost" id="fxOpen">全部展开</button>
+            <button class="mini ghost" id="fxClose">全部收起</button>
+          </div>
+          <div id="fxSteps"></div>
+        </div>
+      </div>
+      </div>
+      <div class="mode-content rib-panel" id="rib-outputs" hidden>
+
+<div class="card lead"><h2>验算结论</h2><div class="body"><div id="rib-status" role="status"></div><p class="hint">各项利用率以 1.00 为限，按左侧所列设计假定及计算范围验算。坐式轴压限值利用率为 μN / 0.5。</p></div></div>
+<div class="card"><h2>减片后的截面几何特性</h2><div class="body"><div id="rib-properties" class="properties"></div></div></div>
+
+<div class="card"><h2>荷载与内力</h2><div class="body" id="rib-loads"></div></div>
+<div class="card"><h2>分步计算过程 · LaTeX</h2><div class="body"><div class="fx-tools"><button class="ghost mini" id="rib-expand">全部展开</button><button class="ghost mini" id="rib-collapse">全部收起</button></div><div id="rib-fxSteps"></div></div></div>
+      </div>
+    </div>
+  </main>
+
+  <footer id="metal-footer">
+    截面尺寸、跨度与风荷载可直接改图上的标注（点数字即改）。
+    截面特性按几何精确积分（多边形 + 孔洞），圆/圆管用解析式。
+    强度：碳钢按 GB 50017-2017 表 4.4.1 依板件厚度分组取 f，铝合金与不锈钢取材料表值。
+    挠度：风（及护栏活荷载）标准值弹性计算，限值按受力形式自动取控制跨度，并与绝对限值取小。
+    悬臂+飞边按护栏立柱模型计算，飞边长度 a 允许为负（面板顶端低于立柱顶端）。
+    立柱可与水平面成夹角 α（高级模式）：风荷载沿面板法向恒垂直于立柱，重力取 cos α 分量，活荷载按水平投影取 cos²α 分量；α &lt; 75° 判定为采光顶龙骨并计入活荷载，面板重力乘 1.1，另校核重力单独作用挠度 ≤ L/500。
+    <span class="ver" id="verLine"></span>
+  </footer>
+  <footer id="rib-footer" hidden>玻璃肋按配置片数减去一片后的截面验算，荷载保持完整构造全设计值。<br>立柱版本 1.12.9 · 玻璃肋算法 1.3.2 · 2026-10-25 12:37</footer>
+
+<script>
+/* ===== 极简 LaTeX 渲染器（自包含，不依赖 MathJax / KaTeX） ===== */
+var TEX_GREEK = {
+  alpha: 'α', beta: 'β', gamma: 'γ', delta: 'δ', epsilon: 'ε', varepsilon: 'ε',
+  zeta: 'ζ', eta: 'η', theta: 'θ', vartheta: 'θ', iota: 'ι', kappa: 'κ',
+  lambda: 'λ', mu: 'μ', nu: 'ν', xi: 'ξ', pi: 'π', rho: 'ρ', sigma: 'σ',
+  tau: 'τ', upsilon: 'υ', phi: 'φ', varphi: 'φ', chi: 'χ', psi: 'ψ', omega: 'ω',
+  Gamma: 'Γ', Delta: 'Δ', Theta: 'Θ', Lambda: 'Λ', Xi: 'Ξ', Pi: 'Π',
+  Sigma: 'Σ', Phi: 'Φ', Psi: 'Ψ', Omega: 'Ω'
+};
+
+var TEX_SYM = {
+  cdot: '·', times: '×', div: '÷', pm: '±',
+  leqslant: '≤', geqslant: '≥', leq: '≤', geq: '≥', le: '≤', ge: '≥',
+  neq: '≠', approx: '≈', infty: '∞', ldots: '…', dots: '…', cdots: '⋯'
+};
+
+var TEX_FN = { max: 'max', min: 'min', sin: 'sin', cos: 'cos', tan: 'tan', ln: 'ln' };
+
+function texEsc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function tex2html(src) {
+  var s = String(src), i = 0;
+
+  function readArg() {
+    if (s[i] === '{') {
+      var depth = 0, st = i;
+      do {
+        if (s[i] === '{') depth++;
+        else if (s[i] === '}') depth--;
+        i++;
+      } while (i < s.length && depth > 0);
+      return s.slice(st + 1, i - 1);
+    }
+    if (s[i] === '\\') {
+      var m = /\\([a-zA-Z]+|.)/.exec(s.slice(i));
+      if (m) { i += m[0].length; return m[0]; }
+    }
+    var c = s[i];
+    i++;
+    return c || '';
+  }
+
+  function parse(top) {
+    var out = '';
+    while (i < s.length) {
+      var c = s[i];
+
+      if (c === '}') {
+        if (!top) i++;
+        break;
+      } else if (c === '{') {
+        i++;
+        out += parse(false);
+      } else if (c === '^') {
+        i++;
+        out += '<sup>' + tex2html(readArg()) + '</sup>';
+      } else if (c === '_') {
+        i++;
+        out += '<sub>' + tex2html(readArg()) + '</sub>';
+      } else if (c === '\\') {
+        var m = /\\([a-zA-Z]+|.)/.exec(s.slice(i));
+        var cmd = m ? m[1] : '';
+        i += m ? m[0].length : 1;
+
+        if (cmd === 'frac') {
+          var a = readArg(), b = readArg();
+          out += '<span class="fx-frac"><span class="fx-num">' + tex2html(a) +
+                 '</span><span class="fx-den">' + tex2html(b) + '</span></span>';
+        } else if (cmd === 'bar') { out += '<span class="fx-bar">' + tex2html(readArg()) + '</span>'; } else if (cmd === 'sqrt') {
+          var idx = '';
+          if (s[i] === '[') {
+            i++;
+            var st2 = i;
+            while (i < s.length && s[i] !== ']') i++;
+            idx = s.slice(st2, i);
+            i++;
+          }
+          out += '<span class="fx-sqrt">' +
+                 (idx ? '<sup class="fx-radidx">' + tex2html(idx) + '</sup>' : '') +
+                 '<span class="fx-rad">√</span>' +
+                 '<span class="fx-radicand">' + tex2html(readArg()) + '</span></span>';
+        } else if (cmd === 'left' || cmd === 'right') {
+          var d = s[i] || (cmd === 'left' ? '(' : ')');
+          i++;
+          out += '<span class="fx-delim">' + texEsc(d) + '</span>';
+        } else if (cmd === 'mathrm' || cmd === 'text' || cmd === 'textrm' ||
+                   cmd === 'operatorname' || cmd === 'mbox') {
+          out += '<span class="fx-rm">' + tex2html(readArg()) + '</span>';
+        } else if (TEX_GREEK[cmd] !== undefined) {
+          out += '<span class="fx-mi">' + TEX_GREEK[cmd] + '</span>';
+        } else if (TEX_SYM[cmd] !== undefined) {
+          out += '<span class="fx-mo">' + TEX_SYM[cmd] + '</span>';
+        } else if (TEX_FN[cmd] !== undefined) {
+          out += '<span class="fx-rm">' + TEX_FN[cmd] + '</span>';
+        } else if (cmd === 'quad' || cmd === 'qquad') {
+          out += '<span class="fx-space"></span>';
+        } else if (cmd === ',' || cmd === ';' || cmd === ':' || cmd === '!' ||
+                   cmd === ' ') {
+          out += '<span class="fx-thin"></span>';
+        } else {
+          out += '<span class="fx-mi">' + texEsc(cmd) + '</span>';
+        }
+      } else if (c === '^') {
+        i++;
+        out += '<sup>' + tex2html(readArg()) + '</sup>';
+      } else if (c === '_') {
+        i++;
+        out += '<sub>' + tex2html(readArg()) + '</sub>';
+      } else {
+        i++;
+        out += c === '<' ? '&lt;' : (c === '>' ? '&gt;' : c);
+      }
+    }
+    return out;
+  }
+
+  return parse(true);
+}
+
+</script>
+<script>
+/* ==================================================================
+   立柱计算核心
+   ================================================================== */
+(function () {
+  'use strict';
+
+  /* ---------- 截面定义 ---------- */
+  const SECTIONS = {
+    circle: { name: '圆形', dims: [['D', '直径 D', 160]] },
+    tube:   { name: '圆管', dims: [['D', '外径 D', 160], ['t', '壁厚 t', 12]] },
+    rect:   { name: '矩形', dims: [['H', '高度 H', 160], ['B', '宽度 B', 70]] },
+    box:    { name: '箱型', dims: [['H', '高度 H', 160], ['B', '宽度 B', 70], ['tf', '翼缘厚 t_f', 12], ['tw', '腹板厚 t_w', 8]] },
+    stri:   { name: '实心三角形', dims: [['H', '高度 H', 160], ['B', '底宽 B', 140]] },
+    htri:   { name: '空心三角形', dims: [['H', '高度 H', 200], ['B', '底宽 B', 180], ['t', '壁厚 t', 10]] },
+    rhomb:  { name: '菱形', dims: [['H', '高度 H', 160], ['B', '宽度 B', 120]] },
+    hrhomb: { name: '空心菱形', dims: [['H', '高度 H', 160], ['B', '宽度 B', 120], ['t', '壁厚 t', 8]] },
+    tee:    { name: 'T形', dims: [['H', '总高 H', 160], ['B', '翼缘宽 B', 90], ['tf', '翼缘厚 t_f', 12], ['tw', '腹板厚 t_w', 8]] },
+    trap:   { name: '梯形', dims: [['H', '高度 H', 160], ['B1', '上底 B₁', 120], ['B2', '下底 B₂', 80]] },
+    htrap:  { name: '空心梯形', dims: [['H', '高度 H', 160], ['B1', '上底 B₁', 120], ['B2', '下底 B₂', 80], ['t', '壁厚 t', 10]] },
+    ibeam:  { name: '对称工字形', dims: [['H', '总高 H', 200], ['B', '翼缘宽 B', 120], ['tf', '翼缘厚 t_f', 12], ['tw', '腹板厚 t_w', 10]] },
+    csh:    { name: 'C 形（开口槽钢）', dims: [['H', '总高 H', 200], ['B', '总宽 B', 70], ['tf', '翼缘厚 t_f', 12], ['tw', '腹板厚 t_w', 8]] }
+  };
+
+  /* ---------- 材料 ---------- */
+  const MATS = [
+    { id: 'AL6061T6', name: '铝合金 6061-T6', cls: 'al',    rho: 2800, E: 70000,  nu: .30, alpha: 2.3e-5,  f: 200, fv: 115, fc: 305, dv: 180 },
+    { id: 'AL6063T5', name: '铝合金 6063-T5', cls: 'al',    rho: 2800, E: 70000,  nu: .30, alpha: 2.3e-5,  f: 90,  fv: 55,  fc: 185, dv: 180 },
+    { id: 'AL6063T6', name: '铝合金 6063-T6', cls: 'al',    rho: 2800, E: 70000,  nu: .30, alpha: 2.3e-5,  f: 150, fv: 85,  fc: 240, dv: 180 },
+    { id: 'AL5083',   name: '铝合金 5083-H112', cls: 'al',  rho: 2800, E: 70000,  nu: .30, alpha: 2.3e-5,  f: 90,  fv: 55,  fc: 315, dv: 180 },
+    { id: 'Q235', name: '钢 Q235', cls: 'steel', rho: 7850, E: 206000, nu: .30, alpha: 1.2e-5,  f: 215, fv: 125, fc: 320, dv: 250 },
+    { id: 'Q355', name: '钢 Q355（Q345）', cls: 'steel', rho: 7850, E: 206000, nu: .30, alpha: 1.2e-5, f: 305, fv: 175, fc: 400, dv: 250 },
+    { id: 'Q390', name: '钢 Q390', cls: 'steel', rho: 7850, E: 206000, nu: .30, alpha: 1.2e-5, f: 345, fv: 200, fc: 415, dv: 250 },
+    { id: 'Q420', name: '钢 Q420', cls: 'steel', rho: 7850, E: 206000, nu: .30, alpha: 1.2e-5, f: 375, fv: 215, fc: 440, dv: 250 },
+    { id: 'Q460', name: '钢 Q460', cls: 'steel', rho: 7850, E: 206000, nu: .30, alpha: 1.2e-5, f: 410, fv: 235, fc: 470, dv: 250 },
+    { id: 'Q620', name: '钢 Q620', cls: 'steel', rho: 7850, E: 206000, nu: .30, alpha: 1.2e-5, f: 565, fv: 325, fc: 605, dv: 250 },
+    { id: 'Q690', name: '钢 Q690', cls: 'steel', rho: 7850, E: 206000, nu: .30, alpha: 1.2e-5, f: 630, fv: 365, fc: 655, dv: 250 },
+    { id: 'S30408', name: '不锈钢 S30408', cls: 'ss', rho: 7900, E: 193000, nu: .30, alpha: 1.73e-5, f: 175, fv: 100, fc: 450, dv: 250 },
+    { id: 'S30403', name: '不锈钢 S30403', cls: 'ss', rho: 7900, E: 193000, nu: .30, alpha: 1.73e-5, f: 145, fv: 85,  fc: 420, dv: 250 },
+    { id: 'S31608', name: '不锈钢 S31608', cls: 'ss', rho: 8000, E: 193000, nu: .30, alpha: 1.60e-5, f: 175, fv: 100, fc: 450, dv: 250 },
+    { id: 'S31603', name: '不锈钢 S31603', cls: 'ss', rho: 8000, E: 193000, nu: .30, alpha: 1.60e-5, f: 145, fv: 85,  fc: 420, dv: 250 },
+    { id: 'S22053', name: '不锈钢 S22053', cls: 'ss', rho: 7800, E: 200000, nu: .30, alpha: 1.30e-5, f: 385, fv: 220, fc: 540, dv: 250 },
+    { id: 'S22253', name: '不锈钢 S22253', cls: 'ss', rho: 7800, E: 200000, nu: .30, alpha: 1.30e-5, f: 385, fv: 220, fc: 540, dv: 250 }
+  ];
+
+  /* GB 50017-2017 表 4.4.1：碳钢强度设计值按板件厚度分组
+     每项 [厚度上限 mm, f, fv] */
+  const STEEL_BANDS = {
+    Q235: [[16, 215, 125], [40, 205, 120], [100, 200, 115]],
+    Q355: [[16, 305, 175], [40, 295, 170], [63, 290, 165], [80, 280, 160], [100, 270, 155]],
+    Q390: [[16, 345, 200], [40, 330, 190], [63, 310, 180], [100, 295, 170]],
+    Q420: [[16, 375, 215], [40, 355, 205], [63, 320, 185], [100, 305, 175]],
+    Q460: [[16, 410, 235], [40, 390, 225], [63, 355, 205], [100, 340, 195]]
+  };
+
+  const REGIONS = {
+    '全国': { gG: 1.3, gW: 1.5, gE: 1.4 },
+    '广东': { gG: 1.3, gW: 1.5, gE: 1.5 },
+    '海外': { gG: 1.0, gW: 1.0, gE: 1.0 }
+  };
+
+  const PANELS = [
+    ['玻璃', 25.6],
+    ['铝板', 28],
+    ['蜂窝铝板', 5]
+  ];
+
+  const INTENS = [
+    ['6 度 0.05g', 0.04],
+    ['7 度 0.10g', 0.08],
+    ['7 度 0.15g', 0.12],
+    ['8 度 0.20g', 0.16],
+    ['8 度 0.30g', 0.24],
+    ['9 度 0.40g', 0.32]
+  ];
+
+  /* ================= 小工具 ================= */
+  function fmt(x, n) { return isFinite(x) ? Number(x).toFixed(n === undefined ? 2 : n) : '—'; }
+  const f1 = function (x) { return fmt(x, 1); };
+  const f2 = function (x) { return fmt(x, 2); };
+  const f3 = function (x) { return fmt(x, 3); };
+  const num = function (id) { const v = parseFloat(el[id].value); return isFinite(v) ? v : 0; };
+  const optNum = function (id) { const v = parseFloat(el[id].value); return isFinite(v) ? v : null; };
+
+  /* ================= 几何 ================= */
+  function signedAreaOf(pts) {
+    let a = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i], q = pts[(i + 1) % pts.length];
+      a += p[0] * q[1] - q[0] * p[1];
+    }
+    return a / 2;
+  }
+  /* 外轮廓统一 CCW，孔洞统一 CW，这样积分时孔洞自然为负 */
+  function orient(pts, wantCCW) {
+    const a = signedAreaOf(pts);
+    return ((wantCCW && a >= 0) || (!wantCCW && a <= 0)) ? pts : pts.slice().reverse();
+  }
+  function circlePts(cx, cy, r, n) {
+    n = n || 96;
+    const p = [];
+    for (let i = 0; i < n; i++) {
+      const a = i / n * Math.PI * 2;
+      p.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
+    }
+    return p;
+  }
+  function rectPts(h, b) {
+    return [[-b / 2, -h / 2], [b / 2, -h / 2], [b / 2, h / 2], [-b / 2, h / 2]];
+  }
+  function lineInt(l1, l2) {
+    const x1 = l1.a[0], y1 = l1.a[1], x2 = l1.b[0], y2 = l1.b[1];
+    const x3 = l2.a[0], y3 = l2.a[1], x4 = l2.b[0], y4 = l2.b[1];
+    const d = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+    if (Math.abs(d) < 1e-9) return null;
+    const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / d;
+    return [x1 + t * (x2 - x1), y1 + t * (y2 - y1)];
+  }
+  /* 凸多边形（CCW）等距内缩 */
+  function offsetPoly(pts, t) {
+    const n = pts.length, lines = [];
+    for (let i = 0; i < n; i++) {
+      const a = pts[i], b = pts[(i + 1) % n];
+      const dx = b[0] - a[0], dy = b[1] - a[1];
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len, ny = dx / len;
+      lines.push({ a: [a[0] + t * nx, a[1] + t * ny], b: [b[0] + t * nx, b[1] + t * ny] });
+    }
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const p = lineInt(lines[(i - 1 + n) % n], lines[i]);
+      out.push(p || lines[i].a);
+    }
+    return out;
+  }
+  /* 三角形内心 */
+  function incenter(v) {
+    const a = Math.hypot(v[1][0] - v[2][0], v[1][1] - v[2][1]);
+    const b = Math.hypot(v[0][0] - v[2][0], v[0][1] - v[2][1]);
+    const c = Math.hypot(v[0][0] - v[1][0], v[0][1] - v[1][1]);
+    const s = a + b + c;
+    return [
+      (a * v[0][0] + b * v[1][0] + c * v[2][0]) / s,
+      (a * v[0][1] + b * v[1][1] + c * v[2][1]) / s
+    ];
+  }
+  function polyArea(pts) {
+    let a = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i], q = pts[(i + 1) % pts.length];
+      a += p[0] * q[1] - q[0] * p[1];
+    }
+    return Math.abs(a) / 2;
+  }
+  function polyPerim(pts) {
+    let s = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i], q = pts[(i + 1) % pts.length];
+      s += Math.hypot(q[0] - p[0], q[1] - p[1]);
+    }
+    return s;
+  }
+  /* 以内心为中心按 k 缩放（等距内缩的精确解） */
+  function shrinkAbout(pts, center, k) {
+    return pts.map(function (p) {
+      return [center[0] + (p[0] - center[0]) * k, center[1] + (p[1] - center[1]) * k];
+    });
+  }
+
+  /* 返回 { polys:[{pts,hole}], xmin..ymax, dims } */
+  function secGeo(type, p) {
+    const H = p.H || 0, B = p.B || 0, tf = p.tf || 0, tw = p.tw || 0,
+          t = p.t || 0, B1 = p.B1 || 0, B2 = p.B2 || 0, D = p.D || 0;
+    const polys = [];
+    let dims = [];
+
+    if (type === 'circle') {
+      polys.push({ pts: circlePts(0, 0, D / 2), hole: false });
+      dims = [['D', D]];
+    } else if (type === 'tube') {
+      polys.push({ pts: circlePts(0, 0, D / 2), hole: false });
+      polys.push({ pts: circlePts(0, 0, Math.max(D / 2 - t, 0.5)), hole: true });
+      dims = [['D', D], ['t', t]];
+    } else if (type === 'rect') {
+      polys.push({ pts: rectPts(H, B), hole: false });
+      dims = [['H', H], ['B', B]];
+    } else if (type === 'box') {
+      polys.push({ pts: rectPts(H, B), hole: false });
+      polys.push({ pts: rectPts(Math.max(H - 2 * tf, .5), Math.max(B - 2 * tw, .5)), hole: true });
+      dims = [['H', H], ['B', B], ['t_f', tf], ['t_w', tw]];
+    } else if (type === 'stri') {
+      polys.push({ pts: [[-B / 2, -H / 2], [B / 2, -H / 2], [0, H / 2]], hole: false });
+      dims = [['H', H], ['B', B]];
+    } else if (type === 'htri') {
+      const out = [[-B / 2, -H / 2], [B / 2, -H / 2], [0, H / 2]];
+      const r = polyArea(out) / (polyPerim(out) / 2);
+      const k = Math.max(1 - t / r, 0.02);
+      polys.push({ pts: out, hole: false });
+      polys.push({ pts: shrinkAbout(out, incenter(out), k), hole: true });
+      dims = [['H', H], ['B', B], ['t', t]];
+    } else if (type === 'rhomb') {
+      polys.push({ pts: [[0, -H / 2], [B / 2, 0], [0, H / 2], [-B / 2, 0]], hole: false });
+      dims = [['H', H], ['B', B]];
+    } else if (type === 'hrhomb') {
+      const out = [[0, -H / 2], [B / 2, 0], [0, H / 2], [-B / 2, 0]];
+      const r = polyArea(out) / (polyPerim(out) / 2);
+      const k = Math.max(1 - t / r, 0.02);
+      polys.push({ pts: out, hole: false });
+      polys.push({ pts: shrinkAbout(out, [0, 0], k), hole: true });
+      dims = [['H', H], ['B', B], ['t', t]];
+    } else if (type === 'tee') {
+      const yb = -H / 2, yt = H / 2;
+      polys.push({ pts: [
+        [B / 2, yt], [B / 2, yt - tf], [tw / 2, yt - tf], [tw / 2, yb],
+        [-tw / 2, yb], [-tw / 2, yt - tf], [-B / 2, yt - tf], [-B / 2, yt]
+      ], hole: false });
+      dims = [['H', H], ['B', B], ['t_f', tf], ['t_w', tw]];
+    } else if (type === 'trap') {
+      polys.push({ pts: [
+        [-B2 / 2, -H / 2], [B2 / 2, -H / 2], [B1 / 2, H / 2], [-B1 / 2, H / 2]
+      ], hole: false });
+      dims = [['H', H], ['B_1', B1], ['B_2', B2]];
+    } else if (type === 'htrap') {
+      const out = [[-B2 / 2, -H / 2], [B2 / 2, -H / 2], [B1 / 2, H / 2], [-B1 / 2, H / 2]];
+      polys.push({ pts: out, hole: false });
+      const inner = offsetPoly(out, t);
+      if (signedAreaOf(inner) > 1e-3) polys.push({ pts: inner, hole: true });
+      dims = [['H', H], ['B_1', B1], ['B_2', B2], ['t', t]];
+    } else if (type === 'ibeam') {
+      const yb = -H / 2, yt = H / 2;
+      polys.push({ pts: [
+        [B / 2, yt], [B / 2, yt - tf], [tw / 2, yt - tf], [tw / 2, yb + tf],
+        [B / 2, yb + tf], [B / 2, yb], [-B / 2, yb], [-B / 2, yb + tf],
+        [-tw / 2, yb + tf], [-tw / 2, yt - tf], [-B / 2, yt - tf], [-B / 2, yt]
+      ], hole: false });
+      dims = [['H', H], ['B', B], ['t_f', tf], ['t_w', tw]];
+    } else if (type === 'csh') {
+      /* 开口朝右的 C 形：左侧腹板 + 上下两片翼缘（右腹板没有） */
+      const yb = -H / 2, yt = H / 2;
+      polys.push({ pts: [
+        [-B / 2, yb], [B / 2, yb], [B / 2, yb + tf], [-B / 2 + tw, yb + tf],
+        [-B / 2 + tw, yt - tf], [B / 2, yt - tf], [B / 2, yt], [-B / 2, yt]
+      ], hole: false });
+      dims = [['H', H], ['B', B], ['t_f', tf], ['t_w', tw]];
+    }
+
+    let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
+    polys.forEach(function (o) {
+      o.pts = orient(o.pts, !o.hole);
+      o.pts.forEach(function (q) {
+        if (q[0] < xmin) xmin = q[0];
+        if (q[0] > xmax) xmax = q[0];
+        if (q[1] < ymin) ymin = q[1];
+        if (q[1] > ymax) ymax = q[1];
+      });
+    });
+    return { polys: polys, xmin: xmin, xmax: xmax, ymin: ymin, ymax: ymax, dims: dims };
+  }
+
+  /* ---------- 多边形积分 ---------- */
+  function signedProps(pts) {
+    let A2 = 0, cx = 0, cy = 0, Ixo = 0, Iyo = 0;
+    const n = pts.length;
+    for (let i = 0; i < n; i++) {
+      const x0 = pts[i][0], y0 = pts[i][1];
+      const x1 = pts[(i + 1) % n][0], y1 = pts[(i + 1) % n][1];
+      const cr = x0 * y1 - x1 * y0;
+      A2 += cr;
+      cx += (x0 + x1) * cr;
+      cy += (y0 + y1) * cr;
+      Ixo += (y0 * y0 + y0 * y1 + y1 * y1) * cr;
+      Iyo += (x0 * x0 + x0 * x1 + x1 * x1) * cr;
+    }
+    const A = A2 / 2;
+    if (Math.abs(A) < 1e-9) return { A: 0, cx: 0, cy: 0, Ixo: 0, Iyo: 0 };
+    return { A: A, cx: cx / (6 * A), cy: cy / (6 * A), Ixo: Ixo / 12, Iyo: Iyo / 12 };
+  }
+
+  function clipHalf(pts, axis, val, keepGreater) {
+    const out = [], n = pts.length;
+    const f = function (q) { return axis === 'y' ? q[1] - val : q[0] - val; };
+    for (let i = 0; i < n; i++) {
+      const a = pts[i], b = pts[(i + 1) % n];
+      const va = f(a), vb = f(b);
+      const ia = keepGreater ? va >= 0 : va <= 0;
+      const ib = keepGreater ? vb >= 0 : vb <= 0;
+      if (ia) out.push(a);
+      if (ia !== ib) {
+        const tt = va / (va - vb);
+        out.push([a[0] + (b[0] - a[0]) * tt, a[1] + (b[1] - a[1]) * tt]);
+      }
+    }
+    return out;
+  }
+
+  /* ---------- 截面特性 ---------- */
+  function secProps(type, p) {
+    const g = secGeo(type, p);
+    let A = 0, Ixo = 0, Iyo = 0, Mx = 0, My = 0;
+    g.polys.forEach(function (o) {
+      const pp = signedProps(o.pts);
+      A += pp.A; Ixo += pp.Ixo; Iyo += pp.Iyo;
+      Mx += pp.A * pp.cx; My += pp.A * pp.cy;
+    });
+    const cx = Mx / A, cy = My / A;
+    let Ix = Ixo - A * cy * cy;
+    let Iy = Iyo - A * cx * cx;
+
+    /* 圆形 / 圆管用解析式，避免多边形离散误差 */
+    if (type === 'circle' || type === 'tube') {
+      const R = (p.D || 0) / 2;
+      const Ri = type === 'tube' ? Math.max(R - p.t, 0) : 0;
+      A = Math.PI * (R * R - Ri * Ri);
+      Ix = Math.PI / 4 * (Math.pow(R, 4) - Math.pow(Ri, 4));
+      Iy = Ix;
+      g.__analy = true;
+    }
+
+    const yTop = Math.abs(g.ymax - cy), yBot = Math.abs(cy - g.ymin);
+    const xR = Math.abs(g.xmax - cx), xL = Math.abs(cx - g.xmin);
+    const yMax = Math.max(yTop, yBot);
+    const xMax = Math.max(xR, xL);
+    const Wx = Ix / yMax;
+    const Wy = Iy / xMax;
+
+    /* 半截面面积矩 */
+    let SxT = 0, SxB = 0, SyR = 0, SyL = 0;
+    if (type === 'circle' || type === 'tube') {
+      const R = (p.D || 0) / 2;
+      const Ri = type === 'tube' ? Math.max(R - p.t, 0) : 0;
+      SxT = 2 / 3 * (Math.pow(R, 3) - Math.pow(Ri, 3));
+      SxB = SxT; SyR = SxT; SyL = SxT;
+    } else {
+      g.polys.forEach(function (o) {
+        let c = clipHalf(o.pts, 'y', cy, true);
+        if (c.length >= 3) { const q = signedProps(c); SxT += q.A * (q.cy - cy); }
+        c = clipHalf(o.pts, 'y', cy, false);
+        if (c.length >= 3) { const q = signedProps(c); SxB += -q.A * (q.cy - cy); }
+        c = clipHalf(o.pts, 'x', cx, true);
+        if (c.length >= 3) { const q = signedProps(c); SyR += q.A * (q.cx - cx); }
+        c = clipHalf(o.pts, 'x', cx, false);
+        if (c.length >= 3) { const q = signedProps(c); SyL += -q.A * (q.cx - cx); }
+      });
+    }
+    const Sx = Math.max(Math.abs(SxT), Math.abs(SxB));
+    const Sy = Math.max(Math.abs(SyR), Math.abs(SyL));
+
+    /* 碳钢厚度分组用的控制厚度：受弯最外纤维所在板件 */
+    let tc, tcNote;
+    if (type === 'tube') { tc = p.t; tcNote = '圆管壁厚 t'; }
+    else if (type === 'box' || type === 'tee' || type === 'ibeam' || type === 'csh') { tc = p.tf; tcNote = '翼缘厚 t_f'; }
+    else if (type === 'htri' || type === 'hrhomb' || type === 'htrap') { tc = p.t; tcNote = '壁厚 t'; }
+    else { tc = Math.max(p.H || 0, p.D || 0); tcNote = '实心截面，取截面厚度'; }
+
+    return {
+      A: A, Ix: Ix, Iy: Iy, Wx: Wx, Wy: Wy, Sx: Sx, Sy: Sy,
+      ix: Math.sqrt(Ix / A), iy: Math.sqrt(Iy / A),
+      cx: cx, cy: cy, yMax: yMax, xMax: xMax,
+      tc: tc, tcNote: tcNote, geo: g
+    };
+  }
+
+  /* ---------- 材料强度 ---------- */
+  function strengthOf(mat, t) {
+    if (mat.cls === 'steel' && STEEL_BANDS[mat.id]) {
+      const bands = STEEL_BANDS[mat.id];
+      for (let i = 0; i < bands.length; i++) {
+        if (t <= bands[i][0] + 1e-9) {
+          return {
+            f: bands[i][1], fv: bands[i][2], fc: mat.fc, band: bands[i][0],
+            grouped: true,
+            note: 'GB 50017-2017 表 4.4.1，t = ' + fmt(t, 1) + ' mm ≤ ' + bands[i][0] + ' mm'
+          };
+        }
+      }
+      const last = bands[bands.length - 1];
+      return { f: last[1], fv: last[2], fc: mat.fc, band: last[0], grouped: true,
+               note: 'GB 50017-2017 表 4.4.1（超出最大分组，取最厚组）' };
+    }
+    return { f: mat.f, fv: mat.fv, fc: mat.fc, band: null, grouped: false, note: '材料表值（不随厚度变化）' };
+  }
+
+  /* ================= 界面 ================= */
+  const el = {};
+  ['sec', 'secPrev', 'secHint', 'mat', 'matInfo', 'matHint',
+   'form', 'B', 'beamPrev', 'formHint',
+   'cardLoad', 'reg', 'rowReg', 'pm', 'pt', 'ig', 'rowPanel', 'rowIg',
+   'advBox', 'gG', 'gW', 'gE', 'gL', 'psL', 'psW',
+   'div', 'limAbs', 'fMan', 'tcMan', 'modeSw', 'lblBasic', 'lblAdv',
+   'verdict', 'condBox', 'secKv', 'loadKv', 'depNote', 'deflBox', 'strBox',
+   'fxSteps', 'fxOpen', 'fxClose', 'printBtn', 'verLine'
+  ].forEach(function (id) { el[id] = document.getElementById(id); });
+
+  const FORM_LIST = [
+    ['simple', '单跨（简支）'], ['two', '双跨（连续）'],
+    ['cant', '悬臂'], ['cantf', '悬臂 + 飞边']
+  ];
+
+  /* 可覆盖的系数与限值（高级模式才有入口） */
+  const OVERRIDE = ['gG', 'gW', 'gE', 'gL', 'psL', 'psW', 'div', 'limAbs', 'fMan', 'tcMan'];
+
+  /* 基础模式开放的范围 */
+  const BASIC_SEC = ['tube', 'box', 'tee'];
+  const BASIC_MAT = ['Q355', 'AL6063T6'];
+  const BASIC_FORM = ['simple', 'two'];
+
+  let mode = 'basic';
+  let dimValues = {};   /* 数值：每种截面各自记住尺寸 */
+  let dimRaw = {};      /* 原文：保住用户敲到一半的 "5." 这类输入 */
+  let curType = 'box';
+  /* 跨度、风荷载、倾角、活荷载：数值 + 原文，直接在简图上编辑 */
+  let beamVals = { L: 5.62, a: 1, wk: 2.4, ang: 90, lk: 0.5 };
+  let beamRaw = { L: '5.62', a: '1', wk: '2.4', ang: '90', lk: '0.5' };
+
+  /* 立柱与水平面夹角 α（°）：<75° 判定为采光顶龙骨，需计活荷载 */
+  const ANG_MIN = 1, ANG_ROOF = 75;
+  const clampAng = function (v) { return Math.min(Math.max(v, ANG_MIN), 90); };
+
+  /* 初始化：尺寸字典 */
+  Object.keys(SECTIONS).forEach(function (k) {
+    const d = {}, w = {};
+    SECTIONS[k].dims.forEach(function (x) { d[x[0]] = x[2]; w[x[0]] = String(x[2]); });
+    dimValues[k] = d;
+    dimRaw[k] = w;
+  });
+
+  /* 选项按模式重建：基础只给常用项，高级全开 */
+  function fillOpts(sel, list, labelOf, valOf, cur) {
+    sel.innerHTML = list.map(function (x) {
+      const v = valOf(x);
+      return '<option value="' + v + '"' + (v === cur ? ' selected' : '') + '>' + labelOf(x) + '</option>';
+    }).join('');
+    sel.value = cur;   /* 显式同步，别只靠 selected 属性 */
+  }
+  function sectionIcon(type) {
+    const defaults = {};
+    SECTIONS[type].dims.forEach(function (d) { defaults[d[0]] = d[2]; });
+    const geo = secGeo(type, defaults);
+    const scale = 34 / Math.max(geo.xmax - geo.xmin, geo.ymax - geo.ymin);
+    const cx = (geo.xmin + geo.xmax) / 2, cy = (geo.ymin + geo.ymax) / 2;
+    const path = geo.polys.map(function (poly) {
+      return poly.pts.map(function (p, i) {
+        return (i ? 'L' : 'M') + (24 + (p[0] - cx) * scale).toFixed(2) + ' ' +
+          (24 - (p[1] - cy) * scale).toFixed(2);
+      }).join(' ') + 'Z';
+    }).join(' ');
+    return '<svg viewBox="0 0 48 48" aria-hidden="true" focusable="false"><path d="' + path +
+      '" fill="currentColor" fill-opacity=".16" fill-rule="evenodd" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>';
+  }
+  function buildSecOptions() {
+    const keys = (mode === 'basic') ? BASIC_SEC : Object.keys(SECTIONS);
+    if (keys.indexOf(curType) < 0) curType = keys.indexOf('box') >= 0 ? 'box' : keys[0];
+    el.sec.innerHTML = keys.map(function (k) {
+      return '<label class="section-option" title="' + SECTIONS[k].name + '">' +
+        '<input type="radio" name="section-type" value="' + k + '" aria-label="' + SECTIONS[k].name + '"' +
+        (k === curType ? ' checked' : '') + '><span class="section-icon">' + sectionIcon(k) + '</span></label>';
+    }).join('');
+  }
+  function buildMatOptions() {
+    const list = (mode === 'basic') ? MATS.filter(function (m) { return BASIC_MAT.indexOf(m.id) >= 0; }) : MATS;
+    let cur = el.mat.value;
+    if (!list.some(function (m) { return m.id === cur; })) cur = 'Q355';
+    fillOpts(el.mat, list, function (m) { return m.name; }, function (m) { return m.id; }, cur);
+  }
+  function buildFormOptions() {
+    const list = (mode === 'basic')
+      ? FORM_LIST.filter(function (f) { return BASIC_FORM.indexOf(f[0]) >= 0; })
+      : FORM_LIST;
+    let cur = el.form.value;
+    if (!list.some(function (f) { return f[0] === cur; })) cur = 'simple';
+    fillOpts(el.form, list, function (f) { return f[1]; }, function (f) { return f[0]; }, cur);
+  }
+  PANELS.forEach(function (p) {
+    const o = document.createElement('option');
+    o.value = p[0]; o.textContent = p[0] + '（γg = ' + p[1] + ' kN/m³）';
+    if (p[0] === '玻璃') o.selected = true;
+    el.pm.appendChild(o);
+  });
+  INTENS.forEach(function (s) {
+    const o = document.createElement('option');
+    o.value = String(s[1]); o.textContent = s[0];
+    if (s[0] === '7 度 0.10g') o.selected = true;
+    el.ig.appendChild(o);
+  });
+
+  /* 尺寸只在标注里改，这里直接从字典取 */
+  function readParams() {
+    const def = SECTIONS[curType], p = {};
+    def.dims.forEach(function (d) { p[d[0]] = dimValues[curType][d[0]]; });
+    return p;
+  }
+
+  /* ---- 读取全部输入 ---- */
+  function readInput() {
+    const mat = MATS.filter(function (m) { return m.id === el.mat.value; })[0] || MATS[4];
+    const reg = REGIONS[el.reg.value] || REGIONS['全国'];
+    const pm = PANELS.filter(function (p) { return p[0] === el.pm.value; })[0] || PANELS[0];
+    const mAdv = (mode === 'adv');
+    return {
+      type: curType,
+      p: readParams(),
+      mat: mat,
+      regName: el.reg.value,
+      gG: mAdv && optNum('gG') !== null ? optNum('gG') : reg.gG,
+      gW: mAdv && optNum('gW') !== null ? optNum('gW') : reg.gW,
+      gE: mAdv && optNum('gE') !== null ? optNum('gE') : reg.gE,
+      gL: mAdv && optNum('gL') !== null ? optNum('gL') : 1.5,
+      psL: mAdv && optNum('psL') !== null ? optNum('psL') : 0.7,
+      psW: mAdv && optNum('psW') !== null ? optNum('psW') : 0.6,
+      divAuto: mat.dv,
+      div: mAdv && optNum('div') !== null ? optNum('div') : mat.dv,
+      limAbs: mAdv && optNum('limAbs') !== null ? optNum('limAbs') : 30,
+      fMan: mAdv ? optNum('fMan') : null,
+      tcMan: mAdv ? optNum('tcMan') : null,
+      form: el.form.value,
+      L: Math.max(beamVals.L, 0.05),
+      a: el.form.value === 'cant' ? 0 : beamVals.a,
+      B: Math.max(num('B'), 0.05),
+      wk: Math.max(beamVals.wk, 0),
+      /* 倾角只在高级模式开放；基础模式恒为 90°（竖直立柱） */
+      ang: mAdv ? clampAng(beamVals.ang) : 90,
+      isRoof: mAdv && clampAng(beamVals.ang) < ANG_ROOF,
+      lk: mAdv ? Math.max(beamVals.lk, 0) : 0,
+      gg: pm[1],
+      panelName: pm[0],
+      pt: Math.max(num('pt'), 0),
+      amax: parseFloat(el.ig.value) || 0.08
+    };
+  }
+
+  /* ================= 计算 ================= */
+  function compute(inp) {
+    const pr = secProps(inp.type, inp.p);
+    const st = strengthOf(inp.mat, inp.tcMan !== null ? inp.tcMan : pr.tc);
+    const f = inp.fMan !== null ? inp.fMan : st.f;
+
+    const E = inp.mat.E, I = pr.Ix, W = pr.Wx;
+    const L = inp.L, a = inp.a, B = inp.B;
+
+    /* ---------- 倾角与荷载分解 ----------
+       统一规则：所有荷载一律取「垂直于立柱轴线」的分量。
+         风 W_k    沿面板法向，本来就垂直于立柱     → ×1
+         重力（立柱自重、面板自重）竖直向下        → ×cos α
+         活荷载 L_k 竖直向下，按水平投影取值       → ×cos²α（一次水平投影、一次分解）
+         地震 E_k   水平                          → ×sin α
+       α = 90° 时 cos α = 0，全部重力项归零，结果与传统竖直立柱完全一致。 */
+    const al = inp.ang * Math.PI / 180;
+    const ca = Math.cos(al), sa = Math.sin(al);
+    const isRoof = inp.isRoof;
+
+    /* 荷载：全部是垂直于立柱的线荷载，kN/m */
+    const qk = inp.wk * B;                                  /* 风 */
+    const Gk = inp.gg * inp.pt / 1000;                      /* kPa，面板自重 */
+    const Ek = 5 * inp.amax * Gk;                           /* kPa，水平地震 */
+    const gsw = pr.A * inp.mat.rho * 1e-6 * 9.8e-3;         /* kN/m，立柱自重 */
+    const panelGravityFactor = isRoof ? 1.1 : 1;
+    const panelGravity = panelGravityFactor * Gk * B;
+    const qGk = (gsw + panelGravity) * ca;                        /* 永久：自重 + 面板自重 */
+    const qLk = isRoof ? inp.lk * B * ca * ca : 0;          /* 活：采光顶，按水平投影 */
+    const qEk = Ek * B * sa;                                /* 地震：水平力取垂直分量 */
+
+    /* 三个组合取包络：风控制 / 活控制 / 地震。永久荷载 γ_G 不折减 */
+    const S1 = inp.gG * qGk + inp.gW * qk + inp.gL * inp.psL * qLk;
+    const S2 = inp.gG * qGk + inp.gL * qLk + inp.gW * inp.psW * qk;
+    const S3 = inp.gG * qGk + inp.gE * qEk;
+    const qd = Math.max(S1, S2, S3);
+    const qdKind = qd === S1 ? '风荷载控制' : (qd === S2 ? '活荷载控制' : '地震控制');
+
+    /* 沿立柱轴线的压力（重力沿轴向的分量），仅作提示，不参与受弯验算 */
+    const Nax = (gsw + panelGravity + (isRoof ? inp.lk * B * ca : 0)) * sa;
+
+    const r = {
+      pr: pr, st: st, f: f, E: E, I: I, W: W, Wx: W, Wy: pr.Wy,
+      qk: qk, Gk: Gk, Ek: Ek, qd: qd, qdKind: qdKind,
+      ang: inp.ang, ca: ca, sa: sa, isRoof: isRoof,
+      gsw: gsw, panelGravityFactor: panelGravityFactor, panelGravity: panelGravity, qGk: qGk, qLk: qLk, qEk: qEk, Nax: Nax,
+      lk: inp.lk,
+      form: inp.form, L: L, a: a, B: B,
+      formName: { simple: '单跨（简支）', two: '双跨（连续）', cant: '悬臂', cantf: '悬臂 + 飞边' }[inp.form]
+    };
+
+    /* 挠度标准组合：d = d_永久 + (风 与 活 互为主要可变荷载的两种组合取大) */
+    const dComb = function (dW, dG, dL) {
+      const A = dW + inp.psL * dL, B = dL + inp.psW * dW;
+      r.dCombA = A; r.dCombB = B;
+      r.dG = dG; r.dW = dW; r.dL = dL;
+      r.dParts = [
+        { k: '风荷载', v: dW },
+        { k: '自重+面板（垂直分量）', v: dG },
+        { k: '活荷载（垂直分量）', v: dL }
+      ];
+      return dG + Math.max(A, B);
+    };
+
+    if (inp.form === 'simple') {
+      r.L1 = L; r.L2 = 0;
+      r.Mstd = qk * L * L / 8;
+      r.Md = qd * L * L / 8;
+      const uD = 5 * Math.pow(L * 1000, 4) / (384 * E * I);   /* mm per kN/m */
+      r.d = dComb(qk * uD, qGk * uD, qLk * uD);
+      r.xMax = L * 1000 / 2;
+      r.l0 = L;
+      r.l0Note = '单跨取跨度 L';
+
+    } else if (inp.form === 'two') {
+      const aC = Math.min(Math.max(a, 0.02), Math.max(L - 0.02, 0.02));
+      r.aC = aC;
+      r.aClamped = Math.abs(aC - a) > 1e-9;
+      const L1 = Math.max(L - aC, 0.01), L2 = Math.max(aC, 0.01);
+      r.L1 = L1; r.L2 = L2;
+      const MBstd = -qk * (Math.pow(L1, 3) + Math.pow(L2, 3)) / (8 * (L1 + L2));
+      const MB = -qd * (Math.pow(L1, 3) + Math.pow(L2, 3)) / (8 * (L1 + L2));
+      const RA = qd * L1 / 2 + MB / L1;
+      const RC = qd * L2 / 2 + MB / L2;
+      const M1 = RA > 0 ? RA * RA / (2 * qd) : 0;
+      const M2 = RC > 0 ? RC * RC / (2 * qd) : 0;
+      r.MB = MB; r.RA = RA; r.RC = RC; r.M1 = M1; r.M2 = M2;
+      r.Md = Math.max(Math.abs(MB), M1, M2);
+      r.MdKind = Math.abs(MB) >= Math.max(M1, M2) ? '中支座负弯矩' : (M1 >= M2 ? '第一跨跨中' : '第二跨跨中');
+      r.Mstd = MBstd; r.MstdKind = r.MdKind;
+
+      /* 挠度与 q 成正比，先算单位均布荷载的挠度再按比例分配 */
+      const t = twoSpanDefl(1, E, I, L1 * 1000, L2 * 1000);
+      r.xMax = t.xmax; r.MBstd = MBstd;
+      r.gravitySpans = [{ L: L1, d: qGk * t.d1 }, { L: L2, d: qGk * t.d2 }];
+      r.d = dComb(qk * t.dmax, qGk * t.dmax, qLk * t.dmax);
+      r.spanOfMax = t.xmax <= L1 * 1000 ? 1 : 2;
+      r.l0 = r.spanOfMax === 1 ? L1 : L2;
+      r.l0Note = '最大挠度出现在第 ' + r.spanOfMax + ' 跨，取该跨跨度';
+
+    } else {
+      const Fa = a * B * inp.wk;             /* kN，a 可负 */
+      const c = L + a / 2;                   /* m */
+      const F = Math.max(B * 1.0, 1.5);      /* kN 护栏水平活荷载 */
+      const FL = F * sa;                     /* 水平活荷载垂直于立柱的分量 */
+      r.Fa = Fa; r.c = c; r.F = F; r.FL = FL;
+
+      const uG = Math.pow(L * 1000, 4) / (8 * E * I);      /* 均布 → mm per kN/m */
+      const uF = Math.pow(L * 1000, 3) / (3 * E * I);      /* 顶端集中 → mm per kN */
+
+      const Mw = qk * L * L / 2 + Fa * c;
+      const MG = qGk * L * L / 2;
+      const ML = FL * L + qLk * L * L / 2;
+      r.Mw = Mw; r.MG = MG; r.ML = ML;
+      r.Md = Math.max(inp.gG * MG + inp.gW * Mw + inp.gL * inp.psL * ML,
+                      inp.gG * MG + inp.gL * ML + inp.gW * inp.psW * Mw);
+      r.comboA = inp.gG * MG + inp.gW * Mw + inp.gL * inp.psL * ML;
+      r.comboB = inp.gG * MG + inp.gL * ML + inp.gW * inp.psW * Mw;
+      r.Mstd = qk * L * L / 2 + Fa * c;
+
+      const dw = qk * uG + (Fa * 1000) * Math.pow(Math.max(c, 0) * 1000, 3) / (3 * E * I);
+      const dG = qGk * uG;
+      const dL = (FL * 1000) * uF + qLk * uG;
+      r.dw = dw; r.dL = dL;
+      r.d = dComb(dw, dG, dL);
+      r.dParts = [{ k: '风（含飞边）', v: dw },
+                  { k: '自重+面板（垂直分量）', v: dG },
+                  { k: '活荷载（垂直分量）', v: dL }];
+      r.xMax = L * 1000;
+      const Lc = Math.max(L, L + a);
+      r.Lc = Lc;
+      r.l0 = 2 * Lc;
+      r.l0Note = '悬臂取 2×(悬挑总长 ' + fmt(Lc, 2) + ' m)';
+    }
+
+    /* 挠度限值 */
+    r.limRel = r.l0 * 1000 / inp.div;
+    r.limAbs = inp.limAbs;
+    r.lim = Math.min(r.limRel, r.limAbs);
+    r.limCtrl = r.limRel <= r.limAbs ? '相对限值控制' : '绝对限值控制';
+    r.div = inp.div;
+
+    /* 采光顶重力单独校核：不含风、活载，不乘荷载分项系数。 */
+    r.gravityChecks = isRoof
+      ? (r.gravitySpans || [{ L: r.l0, d: r.dG }]).map(function (span, index) {
+          const limit = span.L * 1000 / 500;
+          return { span: index + 1, L: span.L, d: span.d, lim: limit,
+                   ratio: span.d / limit, ok: span.d <= limit };
+        }) : [];
+    r.gravityControl = r.gravityChecks.reduce(function (best, check) {
+      return !best || check.ratio > best.ratio ? check : best;
+    }, null);
+    r.okGravity = !isRoof || r.gravityChecks.every(function (check) { return check.ok; });
+
+    /* 校核 */
+    r.sigma = r.Md * 1e6 / W;
+    r.rStrength = r.sigma / f;
+    r.rDefl = r.d / r.lim;
+    r.okStrength = r.sigma <= f;
+    r.okCombinedDefl = r.d <= r.lim;
+    r.okDefl = r.okCombinedDefl && r.okGravity;
+    r.ok = r.okStrength && r.okDefl;
+
+    /* 自重（竖直向下的总量，未分解） */
+    r.sw = gsw;
+    return r;
+  }
+
+  function twoSpanDefl(q, E, I, L1, L2) {
+    const MB = -q * (Math.pow(L1, 3) + Math.pow(L2, 3)) / (8 * (L1 + L2));
+    const RA = q * L1 / 2 + MB / L1;
+    const RC = q * L2 / 2 + MB / L2;
+    const EI = E * I;
+    function y(x) {
+      if (x <= L1) {
+        return -(RA * Math.pow(x, 3) / 6 - q * Math.pow(x, 4) / 24 +
+                 (-RA * L1 * L1 / 6 + q * Math.pow(L1, 3) / 24) * x) / EI;
+      }
+      const u = L1 + L2 - x;
+      return -(RC * Math.pow(u, 3) / 6 - q * Math.pow(u, 4) / 24 +
+               (-RC * L2 * L2 / 6 + q * Math.pow(L2, 3) / 24) * u) / EI;
+    }
+    let dmax = 0, xmax = 0, d1 = 0, d2 = 0;
+    const N = 600, tot = L1 + L2;
+    for (let i = 0; i <= N; i++) {
+      const x = tot * i / N;
+      const d = Math.abs(y(x));
+      if (d > dmax) { dmax = d; xmax = x; }
+      if (x <= L1) d1 = Math.max(d1, d);
+      else d2 = Math.max(d2, d);
+    }
+    return { dmax: dmax, xmax: xmax, d1: d1, d2: d2, MB: MB, RA: RA, RC: RC };
+  }
+
+  /* ================= 绘图 ================= */
+  /* 水平线 y 与多边形右侧的交点（用于给壁厚标注定位） */
+  function rightEdgeX(pts, y) {
+    let best = null;
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length];
+      if (a[1] === b[1]) continue;
+      if ((a[1] - y) * (b[1] - y) <= 0) {
+        const t = (y - a[1]) / (b[1] - a[1]);
+        const x = a[0] + (b[0] - a[0]) * t;
+        if (best === null || x > best) best = x;
+      }
+    }
+    return best === null ? 0 : best;
+  }
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  }
+  /* SVG 内嵌 HTML 输入框：尺寸直接标在图上改 */
+  function foBox(x, y, w, h, inner) {
+    return '<foreignObject x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '">' +
+           '<div xmlns="http://www.w3.org/1999/xhtml" class="dbox">' + inner + '</div></foreignObject>';
+  }
+  const TIP_COMMIT = '改完按回车（或点其他地方）生效';
+  function foInp(key, raw, cls, title) {
+    return '<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" ' +
+           'data-dim="' + key + '" class="' + (cls || 'dim-w') + '" value="' + esc(raw) +
+           '" title="' + esc(title || TIP_COMMIT) + '" aria-label="' + key + '"/>';
+  }
+  function ln(x1, y1, x2, y2, col, w, dash) {
+    return '<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) + '" x2="' + x2.toFixed(1) +
+           '" y2="' + y2.toFixed(1) + '" stroke="' + col + '" stroke-width="' + w + '"' +
+           (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/>';
+  }
+
+  function drawSection(type, p, props) {
+    const W = 340, Hh = 242;
+    const g = secGeo(type, p);
+    const bw = Math.max(g.xmax - g.xmin, 1e-6);
+    const bh = Math.max(g.ymax - g.ymin, 1e-6);
+    const hasB1 = (type === 'trap' || type === 'htrap');
+    const wallKind = ['tube', 'box', 'tee', 'ibeam', 'csh', 'htri', 'hrhomb', 'htrap'].indexOf(type) >= 0;
+    const padL = 66, padR = wallKind ? 76 : 22;
+    const availW = W - padL - padR;
+    const top = hasB1 ? 44 : 30, bot = 186;
+    const availH = bot - top;
+    const sc = Math.min(availW / bw, availH / bh);
+    const cx0 = g.xmin + bw / 2, cy0 = g.ymin + bh / 2;
+    const ox = padL + availW / 2, oy = (top + bot) / 2;
+    const px = function (x) { return ox + (x - cx0) * sc; };
+    const py = function (y) { return oy - (y - cy0) * sc; };
+
+    let d = '';
+    g.polys.forEach(function (o) {
+      o.pts.forEach(function (q, i) {
+        d += (i === 0 ? 'M' : 'L') + px(q[0]).toFixed(2) + ',' + py(q[1]).toFixed(2);
+      });
+      d += 'Z';
+    });
+
+    const xLo = px(g.xmin), xHi = px(g.xmax);
+    const yHi = py(g.ymax), yLo = py(g.ymin);
+    const dimX = 56, dimY = 198;
+    const raw = dimRaw[type] || {};
+
+    let s = '<svg viewBox="0 0 ' + W + ' ' + Hh + '" role="img">';
+    s += '<path d="' + d + '" fill="#dbe7fb" fill-rule="evenodd" stroke="#2f6feb" stroke-width="1.6" stroke-linejoin="round"/>';
+
+    /* ---------- 竖向总高（左侧） ---------- */
+    const vKey = (type === 'circle' || type === 'tube') ? 'D' : 'H';
+    s += ln(dimX, yHi, dimX, yLo, '#9aa3b2', 1);
+    s += ln(dimX - 4, yHi, dimX + 4, yHi, '#9aa3b2', 1);
+    s += ln(dimX - 4, yLo, dimX + 4, yLo, '#9aa3b2', 1);
+    s += ln(dimX + 5, yHi, xLo, yHi, '#d3d9e5', 0.8, '2 3');
+    s += ln(dimX + 5, yLo, xLo, yLo, '#d3d9e5', 0.8, '2 3');
+    s += foBox(0, (yHi + yLo) / 2 - 12, 60, 24,
+               '<i>' + vKey + '</i>' + foInp(vKey, raw[vKey]));
+
+    /* ---------- 上底 B1（梯形，顶部） ---------- */
+    if (hasB1) {
+      const b1a = px(-p.B1 / 2), b1b = px(p.B1 / 2);
+      s += ln(b1a, 26, b1b, 26, '#9aa3b2', 1);
+      s += ln(b1a, 22, b1a, 30, '#9aa3b2', 1);
+      s += ln(b1b, 22, b1b, 30, '#9aa3b2', 1);
+      s += ln(b1a, 30, b1a, yHi, '#d3d9e5', 0.8, '2 3');
+      s += ln(b1b, 30, b1b, yHi, '#d3d9e5', 0.8, '2 3');
+      s += foBox((b1a + b1b) / 2 - 33, 0, 66, 24,
+                 '<i>B₁</i>' + foInp('B1', raw.B1));
+    }
+
+    /* ---------- 横向总宽（底部） ----------
+       梯形必须按下底 B₂ 自己的宽度画，不能拿包围盒（最宽的那条边）当界限，
+       否则短底边的标注线会画到长底边上去。 */
+    const hKey = (type === 'circle' || type === 'tube') ? 'D'
+               : (hasB1 ? 'B2' : 'B');
+    const hLbl = hKey === 'D' ? 'D' : (hKey === 'B2' ? 'B₂' : 'B');
+    const wA = hasB1 ? px(-p.B2 / 2) : xLo;
+    const wB = hasB1 ? px(p.B2 / 2) : xHi;
+    s += ln(wA, dimY, wB, dimY, '#9aa3b2', 1);
+    s += ln(wA, dimY - 4, wA, dimY + 4, '#9aa3b2', 1);
+    s += ln(wB, dimY - 4, wB, dimY + 4, '#9aa3b2', 1);
+    s += ln(wA, yLo, wA, dimY, '#d3d9e5', 0.8, '2 3');
+    s += ln(wB, yLo, wB, dimY, '#d3d9e5', 0.8, '2 3');
+    s += foBox((wA + wB) / 2 - 33, 200, 66, 24,
+               '<i>' + hLbl + '</i>' + foInp(hKey, raw[hKey]));
+
+    /* ---------- 壁厚（右侧，引线 + 加粗示意线） ---------- */
+    if (wallKind) {
+      const anns = [];
+      if (type === 'tube') {
+        anns.push({ k: 't', l: 't', lx: px(p.D / 2 - p.t / 2), ly: py(0),
+                    mk: [px(p.D / 2 - p.t), py(0), px(p.D / 2), py(0)] });
+      } else if (type === 'box' || type === 'ibeam') {
+        anns.push({ k: 'tf', l: 't_f', lx: px(p.B / 2 - p.tw / 2), ly: py(p.H / 2 - p.tf / 2),
+                    mk: [px(p.B / 2 - p.tw / 2), py(p.H / 2 - p.tf), px(p.B / 2 - p.tw / 2), py(p.H / 2)] });
+        anns.push({ k: 'tw', l: 't_w', lx: px(p.B / 2 - p.tw / 2), ly: py(0),
+                    mk: [px(p.B / 2 - p.tw), py(0), px(p.B / 2), py(0)] });
+      } else if (type === 'tee') {
+        anns.push({ k: 'tf', l: 't_f', lx: px(p.B * 0.3), ly: py(p.H / 2 - p.tf / 2),
+                    mk: [px(p.B * 0.3), py(p.H / 2 - p.tf), px(p.B * 0.3), py(p.H / 2)] });
+        anns.push({ k: 'tw', l: 't_w', lx: px(p.tw / 2), ly: py(0),
+                    mk: [px(-p.tw / 2), py(0), px(p.tw / 2), py(0)] });
+      } else if (type === 'csh') {
+        /* 开口朝右：翼缘厚标在上翼缘，腹板厚标在左侧那片腹板（引线从开口穿过） */
+        anns.push({ k: 'tf', l: 't_f', lx: px(p.B * 0.2), ly: py(p.H / 2 - p.tf / 2),
+                    mk: [px(p.B * 0.2), py(p.H / 2 - p.tf), px(p.B * 0.2), py(p.H / 2)] });
+        anns.push({ k: 'tw', l: 't_w', lx: px(-p.B / 2 + p.tw / 2), ly: py(0),
+                    mk: [px(-p.B / 2), py(0), px(-p.B / 2 + p.tw), py(0)] });
+      } else {
+        const xo = rightEdgeX(g.polys[0].pts, 0);
+        const xi = g.polys[1] ? rightEdgeX(g.polys[1].pts, 0) : 0;
+        anns.push({ k: 't', l: 't', lx: px((xo + xi) / 2), ly: py(0),
+                    mk: [px(xi), py(0), px(xo), py(0)] });
+      }
+      const tagX = W - 74;
+      anns.forEach(function (a, i) {
+        const yy = anns.length > 1 ? (i === 0 ? 38 : 74) : 50;
+        if (a.mk) s += ln(a.mk[0], a.mk[1], a.mk[2], a.mk[3], '#2f6feb', 2.6);
+        s += ln(tagX, yy + 12, a.lx, a.ly, '#b9c6dd', 0.9, '3 2');
+        s += foBox(tagX, yy, 72, 24, '<i>' + a.l + '</i>' + foInp(a.k, raw[a.k]));
+      });
+    }
+
+    s += '</svg>';
+    return s;
+  }
+
+  /* 简图上的输入框用 data-bk 区分（与截面尺寸的 data-dim 分开） */
+  function foBInp(key, raw, cls, title) {
+    return '<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" ' +
+           'data-bk="' + key + '" class="' + (cls || 'dim-w') + '" value="' + esc(raw) +
+           '" title="' + esc(title || TIP_COMMIT) + '" aria-label="' + key + '"/>';
+  }
+
+  /* 受力简图：跨度 L、分段 a、风荷载 W_k 都在图上直接改 */
+  function drawBeam(inp, r) {
+    const W = 340;
+    const L = inp.L, a = inp.a;
+    const isCant = inp.form === 'cant' || inp.form === 'cantf';
+    const total = inp.form === 'two' ? L : (isCant ? Math.max(L, L + a) : L);
+    const y0 = 170, yTop = 44;
+    const sc = (y0 - yTop) / Math.max(total, 0.1);
+    const xm = 108;
+    const Y = function (v) { return y0 - v * sc; };
+
+    /* ================= 倾角：整幅图绕「立柱底端」旋转 (90° − α) =================
+       局部坐标（α=90° 的竖直画法）先照旧算，再整体旋转 + 缩放 + 平移塞进画布。
+       α = 90° 时旋转角为 0、缩放为 1、平移为 0 —— 画法与原来逐像素一致。
+       画布尺寸恒定 340×210：倾斜后构件变矮（∝sin α）宽度增加，实测够放，
+       画布跟着变高只会多留白，还会让整块图在改角度时忽大忽小。 */
+    const th = 90 - inp.ang;
+    const showLk = inp.isRoof;          /* α<75°：采光顶，图上加活荷载输入 */
+    const rot = Math.abs(th) > 1e-9;
+    const Hh = 210;                /* 恒高：不随 α 变 */
+    const pivX = xm, pivY = y0;
+    const cs = Math.cos(th * Math.PI / 180), sn = Math.sin(th * Math.PI / 180);
+    /* 顶部的两条输入框（W_k / L_k）占着左上角，α 输入框固定在右上角 */
+    const resTopLk = showLk ? 60 : 30;
+
+    let k = 1, tx = 0, ty = 0;
+    if (rot) {
+      /* 局部图的极值范围按受力形式取实际最外沿，别用一个大矩形包络——
+         矩形一旋转就把自己撑得很大，图会被缩到一半 */
+      const KX = [inp.form === 'two' ? xm - 106 : xm - 70,
+                  inp.form === 'cantf' ? xm + 130 : xm + 110];
+      const KY = [34, inp.form === 'cant' || inp.form === 'cantf' ? 182 : 174];
+      let bx0 = Infinity, bx1 = -Infinity, by0 = Infinity, by1 = -Infinity;
+      KX.forEach(function (x) {
+        KY.forEach(function (y) {
+          const dx = x - pivX, dy = y - pivY;
+          const X = pivX + dx * cs - dy * sn, Yy = pivY + dx * sn + dy * cs;
+          bx0 = Math.min(bx0, X); bx1 = Math.max(bx1, X);
+          by0 = Math.min(by0, Yy); by1 = Math.max(by1, Yy);
+        });
+      });
+      const bw = Math.max(bx1 - bx0, 1), bh = Math.max(by1 - by0, 1);
+      const calc = function (top) {
+        const kk = Math.min(1, (W - 8) / bw, (Hh - top - 6) / bh);
+        const txx = 4 + (W - 8 - bw * kk) / 2 - (kk * bx0 + pivX * (1 - kk));
+        const tyy = top + (Hh - top - 6 - bh * kk) / 2 - (kk * by0 + pivY * (1 - kk));
+        return { k: kk, tx: txx, ty: tyy,
+                 left: kk * bx0 + pivX * (1 - kk) + txx };
+      };
+      /* 先按 30 让开右上角的 α 框；若图伸进左上角那一列，再给 L_k 多让一行 */
+      let f = calc(30);
+      if (showLk && f.left < 124) f = calc(resTopLk);
+      k = f.k; tx = f.tx; ty = f.ty;
+    }
+    /* 局部坐标 → 画布坐标 */
+    function map(x, y) {
+      const dx = x - pivX, dy = y - pivY;
+      return [pivX + k * (dx * cs - dy * sn) + tx, pivY + k * (dx * sn + dy * cs) + ty];
+    }
+    /* 局部 +x 方向在画布上的单位向量：标注框靠它往外推，避免压住立柱 */
+    const q0 = map(xm, y0), q1 = map(xm + 100, y0);
+    const qn = Math.sqrt(Math.pow(q1[0] - q0[0], 2) + Math.pow(q1[1] - q0[1], 2)) || 1;
+    const exv = [(q1[0] - q0[0]) / qn, (q1[1] - q0[1]) / qn];
+    const n1 = function (v) { return (+v).toFixed(1); };
+    /* 旋转后的连线 */
+    function rl(x1, y1, x2, y2, col, w, dash) {
+      const p = map(x1, y1), q = map(x2, y2);
+      return '<line x1="' + n1(p[0]) + '" y1="' + n1(p[1]) + '" x2="' + n1(q[0]) + '" y2="' + n1(q[1]) +
+             '" stroke="' + col + '" stroke-width="' + w + '"' +
+             (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/>';
+    }
+    /* 标注框：先登记偏好位置（挂在局部锚点上，沿局部 ±x 往外推 gap），
+       最后统一做避让再落位 —— 旋转后框会互相挤，硬编码坐标挪不干净 */
+    const boxes = [];
+    function boxAt(ax, ay, w, h, inner, gap, fixed) {
+      const p = map(ax, ay), g = gap === undefined ? 6 : gap;
+      boxes.push({
+        x: p[0] + exv[0] * g, y: p[1] + exv[1] * g - 12,
+        w: w, h: h, html: inner, fixed: !!fixed
+      });
+    }
+    /* 左上角被 W_k / L_k 占着，其余框不许往那儿钻 */
+    const cornerW = 124, cornerH = showLk ? 60 : 30;
+
+    let s = '<svg viewBox="0 0 ' + W + ' ' + Hh + '" role="img">';
+
+    /* ---------- 风荷载 / 活荷载（左上角，直接在图上输入） ---------- */
+    boxes.push({ x: 2, y: 2, w: 120, h: 26, fixed: true,
+                 html: '<i>W<sub>k</sub></i>' + foBInp('wk', beamRaw.wk, 'dim-l') + '<i>kPa</i>' });
+    if (showLk) {
+      boxes.push({ x: 2, y: 32, w: 120, h: 26, fixed: true,
+                   html: '<i>L<sub>k</sub></i>' + foBInp('lk', beamRaw.lk, 'dim-l') + '<i>kPa</i>' });
+    }
+
+    /* ---------- 面板（悬臂带飞边时） ---------- */
+    if (inp.form === 'cantf' && a !== 0) {
+      const pT = a > 0 ? Y(L + a) : Y(L);
+      const pB = a > 0 ? Y(L) : Y(L + a);
+      const c1 = map(xm + 7, pT), c2 = map(xm + 33, pT);
+      const c3 = map(xm + 33, pB), c4 = map(xm + 7, pB);
+      s += '<path d="M' + n1(c1[0]) + ',' + n1(c1[1]) + ' L' + n1(c2[0]) + ',' + n1(c2[1]) +
+           ' L' + n1(c3[0]) + ',' + n1(c3[1]) + ' L' + n1(c4[0]) + ',' + n1(c4[1]) +
+           ' Z" fill="#eef4ff" stroke="#c8d8f5" stroke-width="1" stroke-dasharray="3 3"/>';
+      const ct = map(xm + 20, (pT + pB) / 2);
+      s += '<text x="' + n1(ct[0]) + '" y="' + n1(ct[1] + 4) +
+           '" text-anchor="middle" font-size="11.5" fill="#8aa4cc">面板</text>';
+    }
+
+    /* ---------- 支座（先画，让立柱蓝线压在三角形上方） ---------- */
+    /* 三角形尖端朝左、落在立柱轴线上、底边在右侧：
+         PIN（固定铰支座）  = 只有三角形；
+         滑动支座（可动铰） = 三角形 + 外侧一竖（支承面，中间留缝表示可滑动）。 */
+    const TRI_L = 12, TRI_H = 7, ROLL_GAP = 5;
+    function pin(x, y) {
+      const A = map(x, y), B = map(x + TRI_L, y - TRI_H), C = map(x + TRI_L, y + TRI_H);
+      return '<path d="M' + n1(A[0]) + ',' + n1(A[1]) + ' L' + n1(B[0]) + ',' + n1(B[1]) +
+             ' L' + n1(C[0]) + ',' + n1(C[1]) + ' Z" fill="#fff" fill-opacity="0.85" stroke="#333" stroke-width="1.2"/>';
+    }
+    function roll(x, y) {
+      const xs = x + TRI_L + ROLL_GAP;
+      const D = map(xs, y - TRI_H - 3), E2 = map(xs, y + TRI_H + 3);
+      return pin(x, y) +
+             '<line x1="' + n1(D[0]) + '" y1="' + n1(D[1]) + '" x2="' + n1(E2[0]) + '" y2="' + n1(E2[1]) +
+             '" stroke="#333" stroke-width="1.2"/>';
+    }
+    function fix(x, y) {
+      const A = map(x, y), B = map(x, y + 12);
+      let h = '<line x1="' + n1(A[0]) + '" y1="' + n1(A[1]) + '" x2="' + n1(B[0]) + '" y2="' + n1(B[1]) +
+              '" stroke="#333" stroke-width="1.4"/>';
+      for (let i = 0; i < 5; i++) {
+        const P = map(x - 10 + i * 5, y + 12), Q = map(x - 5 + i * 5, y + 20);
+        h += '<line x1="' + n1(P[0]) + '" y1="' + n1(P[1]) + '" x2="' + n1(Q[0]) + '" y2="' + n1(Q[1]) +
+             '" stroke="#333" stroke-width="1"/>';
+      }
+      return h;
+    }
+    if (inp.form === 'simple') {
+      /* 简支：下端 PIN（立柱坐在底层支座上，定位并传竖向力）、上端滑动（竖向可伸缩） */
+      s += roll(xm, Y(L)); s += pin(xm, Y(0));
+    } else if (inp.form === 'two') {
+      /* 双跨：最下方 1 个 PIN + 上端、中支座 2 个滑动支座 */
+      const yMid = Y(Math.max(L - a, 0.01));
+      s += roll(xm, Y(L)); s += roll(xm, yMid); s += pin(xm, Y(0));
+    } else {
+      s += fix(xm, Y(0) - 12);
+    }
+
+    /* ---------- 立柱 ---------- */
+    s += rl(xm, Y(0), xm, Y(L), '#2f6feb', 4);
+
+    /* ---------- 风荷载箭头（沿面板法向，始终垂直于立柱） ---------- */
+    const nA = isCant ? 6 : 7;
+    for (let i = 0; i <= nA; i++) {
+      const yy = Y(L * i / nA);
+      s += rl(xm - 28, yy, xm - 4, yy, '#8fa7d6', 1.1) .replace('/>', ' marker-end="url(#ar)"/>');
+    }
+    s += rl(xm - 28, Y(0), xm - 28, Y(L), '#8fa7d6', 1, '3 3');
+
+    /* ---------- 飞边集中力 ---------- */
+    if (inp.form === 'cantf' && a !== 0) {
+      const yA = Y(L + a / 2);
+      s += rl(xm - 58, yA, xm - 6, yA, '#c98a2b', 1.4).replace('/>', ' marker-end="url(#ar2)"/>');
+      const tf = map(xm - 62, yA);
+      s += '<text x="' + n1(tf[0]) + '" y="' + n1(tf[1] + 4) +
+           '" text-anchor="end" font-size="13" fill="#b07a24">F<tspan font-size="10" dy="3">a</tspan></text>';
+    }
+
+    /* ---------- 跨度 L（右侧，可编辑） ---------- */
+    const lx = xm + 24;
+    s += rl(lx, Y(0), lx, Y(L), '#9aa3b2', 1);
+    s += rl(lx - 4, Y(0), lx + 4, Y(0), '#9aa3b2', 1);
+    s += rl(lx - 4, Y(L), lx + 4, Y(L), '#9aa3b2', 1);
+    boxAt(lx, (Y(0) + Y(L)) / 2, 80, 24,
+          '<i>L</i>' + foBInp('L', beamRaw.L) + '<i>m</i>');
+
+    /* ---------- 分段 / 飞边 a（可编辑） ---------- */
+    if (inp.form === 'two') {
+      /* a 越界时图照样画得下：先夹进 (0, L)，图上再告诉用户实际取值 */
+      const aC = Math.min(Math.max(a, 0.02), Math.max(L - 0.02, 0.03));
+      const yMid = Y(Math.max(L - aC, 0.01));
+      const aWarn = Math.abs(aC - a) > 1e-9;
+      s += rl(xm - 40, yMid, xm - 40, Y(L), '#9aa3b2', 1);
+      s += rl(xm - 44, yMid, xm - 36, yMid, '#9aa3b2', 1);
+      s += rl(xm - 44, Y(L), xm - 36, Y(L), '#9aa3b2', 1);
+      /* 挂在尺寸线外侧（局部 −x 方向），α=90° 时落回原来的 x=2 */
+      boxAt(xm - 44, (yMid + Y(L)) / 2, 60, 24,
+            '<i>a</i>' + foBInp('a', beamRaw.a, 'dim-w' + (aWarn ? ' warn' : ''),
+            aWarn ? 'a 需在 0 ~ L 之间，已按 ' + fmt(aC, 2) + ' m 计算' : ''), -62);
+      const ts = map(xm - 52, (Y(0) + yMid) / 2);
+      s += '<text x="' + n1(ts[0]) + '" y="' + n1(ts[1] + 4) +
+           '" text-anchor="end" font-size="12.5" fill="#6b7280">' + fmt(L - aC, 2) + ' m</text>';
+    } else if (inp.form === 'cantf') {
+      s += rl(xm + 44, Y(L), xm + 44, Y(L + a), '#9aa3b2', 1);
+      s += rl(xm + 40, Y(L), xm + 48, Y(L), '#9aa3b2', 1);
+      s += rl(xm + 40, Y(L + a), xm + 48, Y(L + a), '#9aa3b2', 1);
+      boxAt(xm + 44, (Y(L) + Y(L + a)) / 2, 80, 24,
+            '<i>a</i>' + foBInp('a', beamRaw.a) + '<i>m</i>');
+    }
+
+    /* ---------- 倾角 α：水平基准线 + 角度弧 + 图上输入 ---------- */
+    if (rot) {
+      const B = map(xm, y0), T = map(xm, Y(L));
+      let ux = T[0] - B[0], uy = T[1] - B[1];
+      const un = Math.sqrt(ux * ux + uy * uy) || 1; ux /= un; uy /= un;
+      const R = 30;
+      s += '<line x1="' + n1(B[0]) + '" y1="' + n1(B[1]) + '" x2="' + n1(B[0] + 60) + '" y2="' + n1(B[1]) +
+           '" stroke="#c3ccdb" stroke-width="1" stroke-dasharray="4 3"/>';
+      s += '<path d="M' + n1(B[0] + R) + ',' + n1(B[1]) + ' A' + R + ',' + R + ' 0 0 0 ' +
+           n1(B[0] + R * ux) + ',' + n1(B[1] + R * uy) +
+           '" fill="none" stroke="#8fa7d6" stroke-width="1.2"/>';
+      /* 弧上标个 α，可编辑的输入框固定在右上角（贴着立柱放会压住立柱和弧） */
+      let gx = (1 + ux) / 2, gy = uy / 2;
+      const gn = Math.sqrt(gx * gx + gy * gy) || 1;
+      const at = [B[0] + 37 * gx / gn, B[1] + 37 * gy / gn];
+      s += '<text x="' + n1(at[0]) + '" y="' + n1(at[1] + 4) +
+           '" text-anchor="middle" font-size="12.5" fill="#5b7bb5">α</text>';
+    }
+    /* α 输入框常驻右上角（α=90° 时也要能改角度），基础模式不出现 */
+    if (mode === 'adv') {
+      boxes.push({ x: W - 88, y: 2, w: 84, h: 24, fixed: true,
+                   html: '<i>α</i>' + foBInp('ang', beamRaw.ang, 'dim-l') + '<i>°</i>' });
+    }
+
+    /* ---------- 标注框落位：先让开左上角，再把互相压住的推开 ---------- */
+    s += placeBoxes(boxes, W, Hh, cornerW, cornerH);
+    return s + '<defs>' +
+      '<marker id="ar" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">' +
+      '<path d="M0,0 L6,3 L0,6 z" fill="#8fa7d6"/></marker>' +
+      '<marker id="ar2" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">' +
+      '<path d="M0,0 L6,3 L0,6 z" fill="#c98a2b"/></marker></defs></svg>';
+  }
+
+  /* 标注框避让：固定框（左上角荷载输入）不动，其余沿重叠较小的方向互推，
+     直到互不重叠且都在画布内。互不重叠时一次都不会动，所以 α=90° 的位置原样保留。 */
+  function placeBoxes(list, W, H, cw, ch) {
+    const bs = list.map(function (b) {
+      let x = b.x, y = b.y;
+      /* 左上角预留区：压到就往下让 */
+      if (!b.fixed && x < cw && y < ch) y = ch;
+      return { x: x, y: y, w: b.w, h: b.h, html: b.html, fixed: b.fixed };
+    });
+    const ovl = function (a, b) {
+      const ox = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+      const oy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+      return (ox > 0 && oy > 0) ? { ox: ox, oy: oy } : null;
+    };
+    for (let it = 0; it < 80; it++) {
+      let moved = false;
+      for (let i = 0; i < bs.length; i++) {
+        for (let j = i + 1; j < bs.length; j++) {
+          const a = bs[i], b = bs[j], o = ovl(a, b);
+          if (!o) continue;
+          moved = true;
+          const dx = (a.x + a.w / 2) - (b.x + b.w / 2);
+          const dy = (a.y + a.h / 2) - (b.y + b.h / 2);
+          const px = o.ox < o.oy ? (o.ox / 2 + 1) * (dx >= 0 ? 1 : -1) : 0;
+          const py = o.ox < o.oy ? 0 : (o.oy / 2 + 1) * (dy >= 0 ? 1 : -1);
+          if (!a.fixed) { a.x += px; a.y += py; }
+          if (!b.fixed) { b.x -= px; b.y -= py; }
+        }
+      }
+      bs.forEach(function (b) {
+        b.x = Math.max(2, Math.min(W - b.w - 2, b.x));
+        b.y = Math.max(2, Math.min(H - b.h - 2, b.y));
+      });
+      if (!moved) break;
+    }
+    return bs.map(function (b) { return foBox(b.x, b.y, b.w, b.h, b.html); }).join('');
+  }
+
+  /* ================= 输出 ================= */
+  const badge = function (ok, r) {
+    return '<span class="badge' + (ok ? '' : ' ng') + '">' + (ok ? 'OK' : 'NG') + '</span>';
+  };
+  const ratioCell = function (r) {
+    return '<td class="num ' + (r > 1 ? 'ng' : 'ok') + '">' + f3(r) + '</td>';
+  };
+  const cell = function (k, v, unit) {
+    return '<div class="cell"><div class="k">' + k + '</div><div class="v">' + v +
+           (unit ? '<span>' + unit + '</span>' : '') + '</div></div>';
+  };
+
+  /* 重绘某个图，并把焦点还给同名输入框（否则每敲一个字符焦点就丢了） */
+  function redraw(host, fn) {
+    const act = document.activeElement;
+    let key = null, pos = null;
+    if (act && act !== document.body && host.contains(act)) {
+      key = act.getAttribute('data-dim') || act.getAttribute('data-bk');
+      try { pos = act.selectionStart; } catch (e) { pos = null; }
+    }
+    host.innerHTML = fn();
+    if (key) {
+      const n = host.querySelector('[data-dim="' + key + '"],[data-bk="' + key + '"]');
+      if (n) {
+        n.focus();
+        if (pos !== null) { try { n.setSelectionRange(pos, pos); } catch (e) {} }
+      }
+    }
+  }
+
+  /* 覆盖框：默认值直接显示出来（地区/材料一变就跟着变），
+     手动改过就锁住（data-auto="0"），清空即回到自动。 */
+  function syncOverride(inp) {
+    const reg = REGIONS[el.reg.value] || REGIONS['全国'];
+    const list = [
+      ['gG', reg.gG], ['gW', reg.gW], ['gE', reg.gE],
+      ['gL', 1.5], ['psL', 0.7], ['psW', 0.6],
+      ['div', inp.mat.dv], ['limAbs', 30]
+    ];
+    list.forEach(function (x) {
+      const e = el[x[0]];
+      if (!e) return;
+      if (e.getAttribute && e.getAttribute('data-auto') === '0') return;   /* 手动锁定 */
+      /* 正在清空重输的时候别抢着回填 */
+      if (e === document.activeElement && String(e.value).trim() === '') return;
+      e.value = String(+x[1].toFixed(3));
+    });
+  }
+
+  function renderOutputs(inp, r) {
+    el.secHint.textContent = '按真实比例绘制。改标注里的数字，图形与计算结果实时更新。';
+
+    /* 材料信息：基础只给抗弯强度 */
+    const st = r.st;
+    el.matInfo.innerHTML = (mode === 'basic')
+      ? '<div><div class="k">f（抗弯）</div><div class="v">' + fmt(r.f, 0) + ' MPa</div></div>'
+      : '<div><div class="k">f（抗弯）</div><div class="v">' + fmt(r.f, 0) + '</div></div>' +
+        '<div><div class="k">f<sub>v</sub></div><div class="v">' + fmt(st.fv, 0) + '</div></div>' +
+        '<div><div class="k">E</div><div class="v">' + fmt(r.E, 0) + '</div></div>' +
+        '<div><div class="k">f<sub>c</sub></div><div class="v">' + fmt(st.fc, 0) + '</div></div>' +
+        '<div><div class="k">ρ</div><div class="v">' + fmt(inp.mat.rho, 0) + '</div></div>' +
+        '<div><div class="k">挠度 1/n</div><div class="v">' + fmt(inp.div, 0) + '</div></div>';
+    el.matHint.innerHTML = inp.mat.cls === 'steel'
+      ? '强度按板件厚度分组：t* = ' + fmt(inp.tcMan !== null ? inp.tcMan : r.pr.tc, 1) + ' mm（' +
+        r.pr.tcNote + '）→ ' + st.note + '。'
+      : '强度取材料表值，不随厚度变化。挠度限值分母 ' + inp.mat.dv + '。';
+
+    syncOverride(inp, r);
+
+    const hints = {
+      simple: '两端铰支，均布风荷载。挠度限值取 L/n 与绝对限值之小。',
+      two: 'L 为总长，a 为第二跨长度（第一跨 = L − a）。跨中与中支座弯矩自动取最大。',
+      cant: '底端固结，均布风荷载。按护栏立柱考虑顶部水平活荷载 F = max(B×1.0, 1.5) kN。',
+      cantf: '底端固结，面板高出立柱顶端 a。飞边附加风荷载 F<sub>a</sub> = a·B·w<sub>k</sub> 作用于 L + a/2；a 取负表示面板顶端低于立柱顶端。'
+    };
+    let angNote = '';
+    if (mode === 'adv') {
+      angNote = '<br>立柱与水平面夹角 <b>α = ' + fmt(inp.ang, 1) + '°</b>：' +
+        (inp.isRoof
+          ? '<b style="color:#b45309">α &lt; 75°，本立柱按采光顶龙骨验算</b>。' +
+            '面板重力按 1.1 倍计入，立柱自重不放大；另校核重力单独作用挠度 ≤ L/500。活荷载按水平投影取值。'
+          : '自重与面板重力垂直于立柱的分量按 cos α 计入（' + fmt(inp.ang, 1) + '° 时为 ' +
+            fmt(r.ca, 3) + '），α = 90° 时归零。');
+    }
+    el.formHint.innerHTML = hints[inp.form] + angNote;
+
+    /* 结论 */
+    el.verdict.innerHTML =
+      '<div class="item"><div class="k">强度利用率 σ / f</div>' +
+      '<div class="v" style="color:' + (r.okStrength ? 'var(--ok)' : 'var(--ng)') + '">' + f3(r.rStrength) + '</div>' +
+      '<div class="sub">' + fmt(r.sigma, 1) + ' / ' + fmt(r.f, 0) + ' MPa</div></div>' +
+      '<div class="item"><div class="k">挠度利用率 d / [d]</div>' +
+      '<div class="v" style="color:' + (r.okCombinedDefl ? 'var(--ok)' : 'var(--ng)') + '">' + f3(r.rDefl) + '</div>' +
+      '<div class="sub">' + fmt(r.d, 2) + ' / ' + fmt(r.lim, 1) + ' mm</div></div>' +
+      (inp.isRoof ? '<div class="item"><div class="k">重力挠度利用率（L/500）</div>' +
+        '<div class="v" style="color:' + (r.okGravity ? 'var(--ok)' : 'var(--ng)') + '">' +
+        f3(r.gravityControl.ratio) + '</div><div class="sub">' +
+        fmt(r.gravityControl.d, 2) + ' / ' + fmt(r.gravityControl.lim, 2) + ' mm</div></div>' : '') +
+      '<div class="item"><div class="k">结论</div>' +
+      '<div class="v" style="padding-top:6px">' + badge(r.ok) + '</div>' +
+      '<div class="sub">' + (r.ok ? '强度与挠度均满足' : (r.okStrength ? '挠度超限' : (r.okDefl ? '强度超限' : '强度、挠度均超限'))) + '</div></div>';
+
+    /* 计算条件：一眼看清算的是什么工况 */
+    const aC0 = inp.form === 'two'
+      ? Math.min(Math.max(inp.a, 0.02), Math.max(inp.L - 0.02, 0.03))
+      : inp.a;
+    const fname = (FORM_LIST.filter(function (f) { return f[0] === inp.form; })[0] || ['', '—'])[1];
+    const fextra = inp.form === 'two' ? '（a = ' + fmt(aC0, 2) + ' m）'
+                 : (inp.form === 'cantf' ? '（a = ' + fmt(inp.a, 2) + ' m）' : '');
+    el.condBox.innerHTML =
+      '<div><div class="k">受力形式</div><div class="v">' + fname + fextra + '</div></div>' +
+      '<div><div class="k">跨度 L</div><div class="v">' + fmt(inp.L, 2) + ' m</div></div>' +
+      '<div><div class="k">立柱间距 B</div><div class="v">' + fmt(inp.B, 2) + ' m</div></div>' +
+      '<div><div class="k">风荷载 W<sub>k</sub></div><div class="v">' + fmt(inp.wk, 2) + ' kPa</div></div>' +
+      (mode === 'adv'
+        ? '<div><div class="k">倾角 α</div><div class="v">' + fmt(inp.ang, 1) + '°</div></div>' : '') +
+      (inp.isRoof
+        ? '<div><div class="k">活荷载 L<sub>k</sub>（水平投影）</div><div class="v">' +
+          fmt(inp.lk, 2) + ' kPa</div></div>' : '');
+
+    /* 截面特性 */
+    el.secKv.innerHTML =
+      cell('A', fmt(r.pr.A / 100, 2), 'cm²') +
+      cell('I<sub>x</sub>', fmt(r.pr.Ix / 1e4, 1), 'cm⁴') +
+      cell('W<sub>x</sub>', fmt(r.pr.Wx / 1e3, 1), 'cm³') +
+      cell('i<sub>x</sub>', fmt(r.pr.ix / 10, 2), 'cm') +
+      cell('I<sub>y</sub>', fmt(r.pr.Iy / 1e4, 1), 'cm⁴') +
+      cell('W<sub>y</sub>', fmt(r.pr.Wy / 1e3, 1), 'cm³') +
+      cell('i<sub>y</sub>', fmt(r.pr.iy / 10, 2), 'cm') +
+      cell('S<sub>x</sub>', fmt(r.pr.Sx / 1e3, 1), 'cm³');
+
+    /* 荷载与内力 */
+    const mdKind = inp.form === 'two' ? '（' + (r.MdKind || '') + '）' : '';
+    const tilt = 90 - inp.ang > 1e-9;
+    el.loadKv.innerHTML =
+      '<div><div class="k">线荷载标准值 q<sub>k</sub></div><div class="v">' + fmt(r.qk, 3) + ' kN/m</div></div>' +
+      '<div><div class="k">地震 E<sub>k</sub></div><div class="v">' + fmt(r.Ek, 4) + ' kPa</div></div>' +
+      (tilt
+        ? '<div><div class="k">自重+面板 垂直分量 q<sub>G⊥</sub></div><div class="v">' +
+          fmt(r.qGk, 3) + ' kN/m</div></div>' +
+          (inp.isRoof
+            ? '<div><div class="k">活荷载 垂直分量 q<sub>L⊥</sub></div><div class="v">' +
+              fmt(r.qLk, 3) + ' kN/m</div></div>' : '')
+        : '') +
+      '<div><div class="k">线荷载设计值 q<sub>d</sub></div><div class="v">' + fmt(r.qd, 3) + ' kN/m</div></div>' +
+      '<div><div class="k">设计弯矩 M<sub>d</sub></div><div class="v">' + fmt(r.Md, 3) + ' kN·m</div></div>' +
+      '<div><div class="k">控制组合</div><div class="v">' + r.qdKind + '</div></div>';
+
+    let dep = '';
+    if (inp.form === 'cant' || inp.form === 'cantf') {
+      dep = '<div class="dep"><b>护栏立柱活荷载</b>　F = max(B × 1.0 kN/m, 1.5 kN) = ' + fmt(r.F, 2) +
+            ' kN，作用于立柱顶端。' +
+            (inp.form === 'cantf' ? '<br><b>飞边</b>　a = ' + fmt(inp.a, 2) + ' m，F<sub>a</sub> = a·B·w<sub>k</sub> = ' +
+              fmt(r.Fa, 3) + ' kN，作用于 ' + fmt(r.c, 3) + ' m 高处。' : '') +
+            '</div>';
+    }
+    if (tilt) {
+      dep += '<div class="dep"><b>倾斜立柱的重力分解</b>（α = ' + fmt(inp.ang, 1) + '°，cos α = ' +
+             fmt(r.ca, 4) + '）　' +
+             '立柱自重 ' + fmt(r.gsw, 4) + ' kN/m + 面板自重 G<sub>k</sub>·B = ' +
+             fmt(r.Gk * inp.B, 4) + ' × ' + fmt(r.panelGravityFactor, 1) + ' = ' + fmt(r.panelGravity, 4) + ' kN/m，合计竖向 ' + fmt(r.gsw + r.panelGravity, 4) +
+             ' kN/m，垂直于立柱的分量 q<sub>G⊥</sub> = ' + fmt(r.qGk, 4) + ' kN/m。' +
+             (inp.isRoof
+               ? '<br><b style="color:#b45309">α &lt; 75°：判定为采光顶龙骨</b>，' +
+                 '另计活荷载 L<sub>k</sub>（按水平投影）垂直于立柱的分量 ' +
+                 'q<sub>L⊥</sub> = L<sub>k</sub>·B·cos²α = ' + fmt(r.qLk, 4) + ' kN/m。'
+               : '') +
+             '<br>重力沿立柱轴线方向的压力 N = ' + fmt(r.Nax, 3) + ' kN（立柱以受弯为主，未计入轴力）。</div>';
+    }
+    el.depNote.innerHTML = dep;
+
+    /* 挠度 */
+    let dRows = '';
+    if (r.dParts) {
+      /* 竖直立柱时重力分量为 0，不摆两行 0.00 出来 */
+      dRows = r.dParts.filter(function (x) { return Math.abs(x.v) > 1e-9; })
+        .map(function (x) {
+          return '<tr><td>' + x.k + '</td><td class="num">' + fmt(x.v, 2) + '</td><td>mm</td></tr>';
+        }).join('');
+    }
+    let dHtml =
+      '<table><thead><tr><th>项目</th><th>挠度</th><th>单位</th></tr></thead><tbody>' +
+      (dRows || '<tr><td>均布风荷载</td><td class="num">' + fmt(r.d, 2) + '</td><td>mm</td></tr>') +
+      (tilt
+        ? '<tr><td><b>标准组合（合计）</b></td><td class="num">' + fmt(r.d, 2) + '</td><td>mm</td></tr>'
+        : (inp.form === 'cant' || inp.form === 'cantf'
+            ? '<tr><td>标准组合（取大）</td><td class="num">' + fmt(r.d, 2) + '</td><td>mm</td></tr>' : '')) +
+      '</tbody></table>' +
+      '<div class="kv" style="margin-top:12px">' +
+      '<div><div class="k">计算挠度 d</div><div class="v">' + fmt(r.d, 2) + ' mm</div></div>' +
+      '<div><div class="k">挠度限值 [d]</div><div class="v">' + fmt(r.lim, 1) + ' mm</div></div>' +
+      '<div><div class="k">利用率 d/[d]</div><div class="v">' + f3(r.rDefl) + '</div></div>' +
+      '<div><div class="k">控制跨度 l₀</div><div class="v">' + fmt(r.l0, 3) + ' m</div></div>' +
+      '<div><div class="k">相对限值 l₀/' + fmt(r.div, 0) + '</div><div class="v">' + fmt(r.limRel, 1) + ' mm</div></div>' +
+      '<div><div class="k">控制项</div><div class="v">' + (r.limRel <= r.limAbs ? '相对限值' : '绝对限值') + '</div></div>' +
+      '</div>' +
+      '<p class="hint" style="margin-top:10px">' + r.l0Note + '；' + r.limCtrl +
+      '（绝对限值 ' + fmt(r.limAbs, 0) + ' mm）。利用率 <b>' + f3(r.rDefl) + '</b> ' +
+      (r.okCombinedDefl ? '<span class="ok">满足</span>' : '<span class="ng">超限</span>') + '。</p>';
+
+    if (inp.form === 'two') {
+      dHtml = '<p class="hint" style="margin:0 0 10px">双跨梁按两跨连续梁解析式逐点求最大挠度（600 点扫描），最大挠度位于 x = ' +
+              fmt(r.xMax / 1000, 3) + ' m（第 ' + (r.spanOfMax || 1) + ' 跨内）。' +
+              (r.aClamped ? '<br><b style="color:#b45309">a 超出 (0, L) 范围，已按 ' + fmt(r.aC, 2) + ' m 计算。</b>' : '') +
+              '</p>' + dHtml;
+    }
+    if (inp.isRoof) {
+      dHtml += '<h3 style="font-size:13px;margin:18px 0 8px">采光顶：重力单独作用挠度（L/500）</h3>' +
+        '<p class="hint">立柱自重 + 1.1 × 面板重力，取垂直于龙骨的分量；不含风、活载及荷载分项系数。' +
+        '双跨逐跨检查；单跨取实际跨度，悬臂沿用 2×悬挑总长的控制跨度。</p>' +
+        '<table><thead><tr><th>校核项</th><th>控制跨度 m</th><th>重力挠度 mm</th><th>L/500 mm</th><th>结果</th></tr></thead><tbody>' +
+        r.gravityChecks.map(function (check) {
+          return '<tr><td>' + (inp.form === 'two' ? '第 ' + check.span + ' 跨' : '重力工况') +
+            '</td><td>' + fmt(check.L, 3) + '</td><td>' + fmt(check.d, 2) + '</td><td>' +
+            fmt(check.lim, 2) + '</td><td>' + badge(check.ok) + '</td></tr>';
+        }).join('') + '</tbody></table>';
+    }
+    el.deflBox.innerHTML = dHtml;
+
+    /* 强度 */
+    el.strBox.innerHTML =
+      '<div class="kv" style="grid-template-columns:repeat(3,1fr)">' +
+      '<div><div class="k">设计弯矩 M<sub>d</sub>' + mdKind + '</div><div class="v">' + fmt(r.Md, 3) + ' kN·m</div></div>' +
+      '<div><div class="k">截面模量 W<sub>x</sub></div><div class="v">' + fmt(r.Wx / 1e3, 1) + ' cm³</div></div>' +
+      '<div><div class="k">应力 σ</div><div class="v">' + fmt(r.sigma, 1) + ' MPa</div></div>' +
+      '<div><div class="k">强度 f</div><div class="v">' + fmt(r.f, 0) + ' MPa</div></div>' +
+      '<div><div class="k">利用率 σ/f</div><div class="v">' + f3(r.rStrength) + '</div></div>' +
+      '</div>' +
+      '<p class="hint" style="margin-top:10px">σ ≤ f = ' + fmt(r.f, 0) + ' MPa（' + st.note + '）。利用率 <b>' +
+      f3(r.rStrength) + '</b> ' + (r.okStrength ? '<span class="ok">满足</span>' : '<span class="ng">超限</span>') + '。</p>' +
+      '<p class="hint" style="margin:6px 0 0;border-top:1px dashed rgba(0,0,0,.08);padding-top:8px">' +
+      '构件自重（竖直方向总量）' + fmt(r.sw, 4) + ' kN/m' +
+      (90 - inp.ang > 1e-9
+        ? '，其中垂直于立柱的分量 ' + fmt(r.qGk, 4) + ' kN/m 已计入弯矩；' +
+          '沿轴线方向的压力 N = ' + fmt(r.Nax, 3) + ' kN，未计入轴力。'
+        : '，竖直立柱的自重为轴向压力，不产生弯矩，故未计入。') +
+      '</p>';
+
+    renderSteps(buildSteps(inp, r));
+  }
+
+  function render() {
+    const inp = readInput();
+    let r;
+    try { r = compute(inp); } catch (e) { console.error(e); return; }
+    redraw(el.secPrev, function () { return drawSection(inp.type, inp.p, r.pr); });
+    redraw(el.beamPrev, function () { return drawBeam(inp, r); });
+    renderOutputs(inp, r);
+  }
+
+  /* ================= 分步公式 ================= */
+  const CN = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨'];
+
+  function fxl(tag, sym, sub, res, resCls) {
+    return '<div class="fxl">' +
+      '<span class="fxtag">' + (tag || '') + '</span>' +
+      '<div class="fx fx-sym">' + tex2html(sym) + '</div>' +
+      '<div class="fx">' + tex2html(sub) +
+        '<span class="fxeq">=</span>' +
+        '<span class="fxres' + (resCls ? ' ' + resCls : '') + '">' + tex2html(res) + '</span>' +
+      '</div></div>';
+  }
+  function note(t) { return '<p class="fxnote">' + t + '</p>'; }
+
+  function renderSteps(steps) {
+    const prev = [];
+    document.querySelectorAll('#fxSteps .fxstep').forEach(function (d) { prev.push(d.open); });
+    let h = '';
+    steps.forEach(function (s, i) {
+      const open = prev[i] !== undefined ? prev[i] : (i === 0);
+      h += '<details class="fxstep"' + (open ? ' open' : '') + '>' +
+             '<summary>' + CN[i] + ' ' + s.t + '</summary>' +
+             '<div class="fxbody">' + (s.n ? note(s.n) : '') + s.L.join('') + '</div></details>';
+    });
+    document.getElementById('fxSteps').innerHTML = h;
+  }
+
+  function buildSteps(inp, r) {
+    const steps = [];
+    const nn = function (x, d) { return fmt(x, d === undefined ? 2 : d); };
+    const pr = r.pr, E = r.E, I = r.I;
+
+    /* ① 截面几何 */
+    const L1 = [];
+    L1.push(fxl('面积', 'A', nn(pr.A / 100, 2) + '\\ \\\mathrm{cm}^{2}',
+                nn(pr.A, 0) + '\\ \\mathrm{mm}^{2}'));
+    L1.push(fxl('惯性矩', 'I_{x}', nn(pr.Ix / 1e4, 1) + '\\ \\mathrm{cm}^{4}',
+                nn(pr.Ix, 0) + '\\ \\mathrm{mm}^{4}'));
+    L1.push(fxl('', 'W_{x}', '\\frac{I_{x}}{y_{\\max}}',
+                '\\frac{' + nn(pr.Ix, 0) + '}{' + nn(pr.yMax, 1) + '}=\\ ' + nn(pr.Wx / 1e3, 1) + '\\ \\mathrm{cm}^{3}'));
+    L1.push(fxl('回转半径', 'i_{x}', '\\sqrt{\\frac{I_{x}}{A}}',
+                '\\sqrt{\\frac{' + nn(pr.Ix, 0) + '}{' + nn(pr.A, 0) + '}}=\\ ' + nn(pr.ix, 1) + '\\ \\mathrm{mm}'));
+    steps.push({
+      t: '截面几何特性',
+      n: SECTIONS[inp.type].name + '：截面特性按几何精确积分（孔洞以负面积扣除），' +
+         'y<sub>max</sub> 取受拉/受压最远纤维距离的较大者。',
+      L: L1
+    });
+
+    /* ② 材料强度 */
+    const L2 = [];
+    const tUse = inp.tcMan !== null ? inp.tcMan : pr.tc;
+    L2.push(fxl('弹性模量', 'E', '', nn(E, 0) + '\\ \\mathrm{MPa}'));
+    if (inp.fMan !== null) {
+      L2.push(fxl('强度', 'f', '', nn(r.f, 0) + '\\ \\mathrm{MPa} \\quad \\mathrm{(手动覆盖)}'));
+    } else if (r.st.grouped) {
+      L2.push(fxl('控制厚度', 't^{*}', '', nn(tUse, 1) + '\\ \\mathrm{mm} \\quad \\mathrm{(' + pr.tcNote + ')}'));
+      L2.push(fxl('强度设计值', 'f', '\\left(t^{*}\\leq ' + r.st.band + '\\ \\mathrm{mm}\\right)',
+                  nn(r.f, 0) + '\\ \\mathrm{MPa}'));
+    } else {
+      L2.push(fxl('强度设计值', 'f', '', nn(r.f, 0) + '\\ \\mathrm{MPa}'));
+    }
+    L2.push(fxl('挠度分母', 'n', '', nn(inp.div, 0)));
+    steps.push({
+      t: '材料强度设计值',
+      n: inp.mat.cls === 'steel'
+        ? '碳钢按 GB 50017-2017 表 4.4.1 依板件厚度分组取值：' + r.st.note + '。'
+        : '铝合金 / 不锈钢强度不随厚度分组，取材料表值。',
+      L: L2
+    });
+
+    /* ③ 荷载标准值 */
+    const L3 = [];
+    L3.push(fxl('风线荷载', 'q_{k}', 'w_{k}\\,B',
+                nn(inp.wk, 2) + '\\times ' + nn(inp.B, 2) + '=\\ ' + nn(r.qk, 3) + '\\ \\mathrm{kN/m}'));
+    L3.push(fxl('面板自重', 'G_{k}', '\\gamma_{g}\\,t',
+                nn(inp.gg, 1) + '\\times ' + nn(inp.pt, 0) + '\\times 10^{-3}=\\ ' + nn(r.Gk, 4) + '\\ \\mathrm{kPa}'));
+    L3.push(fxl('地震', 'E_{k}', '5\\alpha_{\\max}G_{k}',
+                '5\\times ' + nn(inp.amax, 2) + '\\times ' + nn(r.Gk, 4) + '=\\ ' + nn(r.Ek, 4) + '\\ \\mathrm{kPa}'));
+
+    /* 倾斜立柱：所有荷载都取垂直于立柱轴线的分量 */
+    const tilt = 90 - inp.ang > 1e-9;
+    if (tilt) {
+      L3.push(fxl('立柱自重', 'g_{k}', 'A\\,\\rho',
+        nn(r.pr.A, 0) + '\\times ' + nn(inp.mat.rho, 0) + '\\times 10^{-6}\\times 9.8\\times 10^{-3}=\\ ' +
+        nn(r.gsw, 4) + '\\ \\mathrm{kN/m}'));
+      L3.push(fxl('重力 ⊥分量', 'q_{G\\perp}', '\\left(g_{k}+' + nn(r.panelGravityFactor, 1) + 'G_{k}B\\right)\\cos\\alpha',
+        '\\left(' + nn(r.gsw, 4) + '+' + nn(r.panelGravity, 4) + '\\right)\\times\\cos ' + nn(inp.ang, 1) +
+        '^{\\circ}=\\ ' + nn(r.qGk, 4) + '\\ \\mathrm{kN/m}'));
+      if (inp.isRoof) {
+        L3.push(fxl('活载 ⊥分量', 'q_{L\\perp}', 'L_{k}B\\cos^{2}\\alpha',
+          nn(inp.lk, 2) + '\\times ' + nn(inp.B, 2) + '\\times\\cos^{2} ' + nn(inp.ang, 1) +
+          '^{\\circ}=\\ ' + nn(r.qLk, 4) + '\\ \\mathrm{kN/m}'));
+      }
+      L3.push(fxl('地震 ⊥分量', 'q_{E\\perp}', 'E_{k}B\\sin\\alpha',
+        nn(r.Ek, 4) + '\\times ' + nn(inp.B, 2) + '\\times\\sin ' + nn(inp.ang, 1) +
+        '^{\\circ}=\\ ' + nn(r.qEk, 4) + '\\ \\mathrm{kN/m}'));
+    }
+    steps.push({
+      t: '荷载标准值' + (tilt ? '与倾角分解' : ''),
+      n: tilt
+        ? '立柱与水平面夹角 α = ' + nn(inp.ang, 1) + '°。' +
+          '风荷载沿面板法向，本来就垂直于立柱，取 full 值；' +
+          '重力（自重、面板自重）竖直向下，垂直分量乘 cos α；' +
+          (inp.isRoof
+            ? '<b>α &lt; 75°，判定为采光顶龙骨</b>，面板重力乘 1.1，另校核重力挠度 L/500；活荷载按水平投影取值，垂直分量再乘一次 cos α，即 cos²α；'
+            : '') +
+          '水平地震的垂直分量乘 sin α。α = 90° 时 cos α = 0，全部重力项归零，退回常规竖直立柱。'
+        : '风荷载按立柱间距 B 换算为线荷载；α = 90°（竖直立柱）时自重与面板重力不产生弯矩，面板自重仅用于计算地震等效静力。',
+      L: L3
+    });
+
+    /* ④ 荷载组合 */
+    const L4 = [];
+    if (tilt) {
+      /* 三组合包络：风控制 / 活控制 / 地震，永久荷载 γ_G 不折减 */
+      L4.push(fxl('风控制', 'q_{d1}', '\\gamma_{G}q_{G\\perp}+\\gamma_{W}q_{k}+\\gamma_{L}\\psi_{L}q_{L\\perp}',
+        nn(inp.gG, 2) + '\\times ' + nn(r.qGk, 4) + '+' + nn(inp.gW, 2) + '\\times ' + nn(r.qk, 3) + '+' +
+        nn(inp.gL, 2) + '\\times ' + nn(inp.psL, 2) + '\\times ' + nn(r.qLk, 4) + '=\\ ' +
+        nn(inp.gG * r.qGk + inp.gW * r.qk + inp.gL * inp.psL * r.qLk, 4) + '\\ \\mathrm{kN/m}'));
+      L4.push(fxl('活控制', 'q_{d2}', '\\gamma_{G}q_{G\\perp}+\\gamma_{L}q_{L\\perp}+\\gamma_{W}\\psi_{W}q_{k}',
+        nn(inp.gG, 2) + '\\times ' + nn(r.qGk, 4) + '+' + nn(inp.gL, 2) + '\\times ' + nn(r.qLk, 4) + '+' +
+        nn(inp.gW, 2) + '\\times ' + nn(inp.psW, 2) + '\\times ' + nn(r.qk, 3) + '=\\ ' +
+        nn(inp.gG * r.qGk + inp.gL * r.qLk + inp.gW * inp.psW * r.qk, 4) + '\\ \\mathrm{kN/m}'));
+      L4.push(fxl('地震', 'q_{d3}', '\\gamma_{G}q_{G\\perp}+\\gamma_{E}q_{E\\perp}',
+        nn(inp.gG, 2) + '\\times ' + nn(r.qGk, 4) + '+' + nn(inp.gE, 2) + '\\times ' + nn(r.qEk, 4) +
+        '=\\ ' + nn(inp.gG * r.qGk + inp.gE * r.qEk, 4) + '\\ \\mathrm{kN/m}'));
+      L4.push(fxl('取包络', 'q_{d}', '\\max\\left(q_{d1},q_{d2},q_{d3}\\right)',
+        nn(r.qd, 4) + '\\ \\mathrm{kN/m}\\quad(' + r.qdKind + ')'));
+    } else {
+      L4.push(fxl('设计值', 'q_{d}', '\\max\\left(\\gamma_{W}q_{k},\\ \\gamma_{E}E_{k}B\\right)',
+        '\\max\\left(' + nn(inp.gW, 2) + '\\times ' + nn(r.qk, 3) + ',\\ ' + nn(inp.gE, 2) + '\\times ' +
+        nn(r.Ek, 4) + '\\times ' + nn(inp.B, 2) + '\\right)=\\ ' + nn(r.qd, 3) + '\\ \\mathrm{kN/m}'));
+    }
+    if (inp.form === 'cant' || inp.form === 'cantf') {
+      L4.push(fxl('活荷载', 'F', '\\max\\left(B\\times 1.0,\\ 1.5\\right)',
+                  '\\max\\left(' + nn(inp.B, 2) + ',\\ 1.5\\right)=\\ ' + nn(r.F, 2) + '\\ \\mathrm{kN}'));
+      if (inp.form === 'cantf') {
+        L4.push(fxl('飞边集中力', 'F_{a}', 'a\\,B\\,w_{k}',
+                    nn(inp.a, 2) + '\\times ' + nn(inp.B, 2) + '\\times ' + nn(inp.wk, 2) +
+                    '=\\ ' + nn(r.Fa, 3) + '\\ \\mathrm{kN}'));
+      }
+      L4.push(fxl('弯矩组合', 'M_{d}', '\\max\\left(\\gamma_{W}M_{w}+\\gamma_{L}\\psi_{L}M_{L},\\ \\gamma_{L}M_{L}+\\gamma_{W}\\psi_{W}M_{w}\\right)',
+        '\\max\\left(' + nn(r.comboA, 3) + ',\\ ' + nn(r.comboB, 3) + '\\right)=\\ ' + nn(r.Md, 3) + '\\ \\mathrm{kN\\cdot m}'));
+    }
+    L4.push(fxl('系数', '\\gamma_{G},\\gamma_{W},\\gamma_{E}', '',
+      nn(inp.gG, 2) + ',\\ ' + nn(inp.gW, 2) + ',\\ ' + nn(inp.gE, 2) + '\\quad(' + inp.regName + ')'));
+    steps.push({
+      t: '荷载分项与组合',
+      n: '分项系数按项目地区选取（全国 / 广东 / 海外）。地震工况与风工况取包络，不叠加。' +
+         (tilt ? '倾斜立柱时，风控制与活控制两种组合取大，永久荷载 γ<sub>G</sub> 不折减。' : '') +
+         (inp.form === 'cant' || inp.form === 'cantf' ? '悬臂按护栏立柱，风与水平活荷载按组合值系数叠加。' : ''),
+      L: L4
+    });
+
+    /* ⑤ 内力 */
+    const L5 = [];
+    if (inp.form === 'simple') {
+      L5.push(fxl('弯矩', 'M_{d}', '\\frac{q_{d}L^{2}}{8}',
+        '\\frac{' + nn(r.qd, 3) + '\\times ' + nn(r.L, 3) + '^{2}}{8}=\\ ' + nn(r.Md, 3) + '\\ \\mathrm{kN\\cdot m}'));
+    } else if (inp.form === 'two') {
+      L5.push(fxl('跨度', 'L_{1},\\ L_{2}', 'L-a,\\ a',
+        nn(r.L1, 2) + ',\\ ' + nn(r.L2, 2) + '\\ \\mathrm{m}'));
+      L5.push(fxl('中支座弯矩', 'M_{B}', '-\\frac{q_{d}\\left(L_{1}^{3}+L_{2}^{3}\\right)}{8\\left(L_{1}+L_{2}\\right)}',
+        nn(Math.abs(r.MB), 3) + '\\ \\mathrm{kN\\cdot m}\\ (\\mathrm{负弯矩})'));
+      L5.push(fxl('支座反力', 'R_{A},\\ R_{C}', '\\frac{q_{d}L_{1}}{2}+\\frac{M_{B}}{L_{1}}',
+        nn(r.RA, 3) + ',\\ ' + nn(r.RC, 3) + '\\ \\mathrm{kN}'));
+      L5.push(fxl('跨内最大', 'M_{1},\\ M_{2}', '\\frac{R^{2}}{2q_{d}}',
+        nn(r.M1, 3) + ',\\ ' + nn(r.M2, 3) + '\\ \\mathrm{kN\\cdot m}'));
+      L5.push(fxl('控制弯矩', 'M_{d}', '\\max\\left(\\left|M_{B}\\right|,M_{1},M_{2}\\right)',
+        nn(r.Md, 3) + '\\ \\mathrm{kN\\cdot m}\\quad(' + (r.MdKind || '') + ')'));
+    } else {
+      L5.push(fxl('风致弯矩', 'M_{w}', '\\frac{q_{k}L^{2}}{2}+F_{a}\\left(L+\\frac{a}{2}\\right)',
+        nn(r.Mw, 3) + '\\ \\mathrm{kN\\cdot m}'));
+      L5.push(fxl('活载弯矩', 'M_{L}', 'F\\,L', nn(r.ML, 3) + '\\ \\mathrm{kN\\cdot m}'));
+      L5.push(fxl('控制弯矩', 'M_{d}', '', nn(r.Md, 3) + '\\ \\mathrm{kN\\cdot m}'));
+    }
+    steps.push({ t: '内力（弯矩）', n: '按受力形式的解析解计算。', L: L5 });
+
+    /* ⑥ 挠度 */
+    const L6 = [];
+    if (inp.form === 'simple') {
+      L6.push(fxl('风致挠度', 'd_W', '\\frac{5q_{k}L^{4}}{384EI}',
+        '\\frac{5\\times ' + nn(r.qk, 3) + '\\times ' + nn(r.L * 1000, 0) + '^{4}}{384\\times ' + nn(E, 0) +
+        '\\times ' + nn(I, 0) + '}=\\ ' + nn(r.dW, 2) + '\\ \\mathrm{mm}'));
+    } else if (inp.form === 'two') {
+      L6.push(fxl('逐点挠度', 'y(x)', '\\frac{-1}{EI}\\left[\\frac{R x^{3}}{6}-\\frac{q x^{4}}{24}+C_{0}x\\right]',
+        nn(r.d, 2) + '\\ \\mathrm{mm}\\ \\mathrm{(max)}'));
+      L6.push(fxl('位置', 'x_{\\max}', '', nn(r.xMax / 1000, 3) + '\\ \\mathrm{m}\\quad(\\mathrm{第\\ ' + (r.spanOfMax || 1) + '\\ 跨})'));
+    } else {
+      L6.push(fxl('风致挠度', 'd_{w}', '\\frac{q_{k}L^{4}}{8EI}+\\frac{F_{a}c^{3}}{3EI}',
+        nn(r.dw, 2) + '\\ \\mathrm{mm}\\quad c=' + nn(r.c, 3) + '\\ \\mathrm{m}'));
+      L6.push(fxl('活载挠度', 'd_{L}', '\\frac{FL^{3}}{3EI}', nn(r.dL, 2) + '\\ \\mathrm{mm}'));
+      L6.push(fxl('标准组合', 'd', '\\max\\left(d_{w}+0.7d_{L},\\ d_{L}+0.6d_{w}\\right)',
+        '\\max\\left(' + nn(r.dCombA, 2) + ',\\ ' + nn(r.dCombB, 2) + '\\right)=\\ ' + nn(r.d, 2) + '\\ \\mathrm{mm}'));
+    }
+    if (tilt) {
+      L6.push(fxl('重力挠度', 'd_G', '', nn(r.dG, 3) + '\\ \\mathrm{mm}'));
+      L6.push(fxl('标准组合', 'd', 'd_G+\\max(d_W+\\psi_L d_L,d_L+\\psi_W d_W)',
+        nn(r.dG, 3) + '+\\max(' + nn(r.dCombA, 3) + ',' + nn(r.dCombB, 3) + ')=' + nn(r.d, 3) + '\\ \\mathrm{mm}'));
+    }
+    steps.push({
+      t: '挠度（标准值）',
+      n: tilt
+        ? '弹性计算。标准组合 d = d<sub>G⊥</sub> + max(d<sub>W</sub> + ψ<sub>L</sub>·d<sub>L⊥</sub>, d<sub>L⊥</sub> + ψ<sub>W</sub>·d<sub>W</sub>)：' +
+          '自重与面板的垂直分量不折减，风与活荷载互为主要可变荷载取包络。'
+        : '弹性计算，仅计水平荷载（风、护栏活荷载），不计自重引起的竖向变形（竖直立柱自重为轴力）。',
+      L: L6
+    });
+
+    /* ⑦ 限值 */
+    const L7 = [];
+    L7.push(fxl('控制跨度', 'l_{0}', '', nn(r.l0, 3) + '\\ \\mathrm{m}\\quad(' + r.l0Note + ')'));
+    L7.push(fxl('相对限值', '\\left[d\\right]_{1}', '\\frac{l_{0}}{n}',
+      '\\frac{' + nn(r.l0 * 1000, 0) + '}{' + nn(r.div, 0) + '}=\\ ' + nn(r.limRel, 2) + '\\ \\mathrm{mm}'));
+    L7.push(fxl('绝对限值', '\\left[d\\right]_{2}', '', nn(r.limAbs, 0) + '\\ \\mathrm{mm}'));
+    L7.push(fxl('取用限值', '\\left[d\\right]', '\\min\\left(\\left[d\\right]_{1},\\left[d\\right]_{2}\\right)',
+      nn(r.lim, 2) + '\\ \\mathrm{mm}\\quad(' + r.limCtrl + ')'));
+    L7.push(fxl('利用率', 'd/\\left[d\\right]', '',
+      nn(r.rDefl, 3) + (r.okDefl ? '\\ \\leq 1\\ \\mathrm{OK}' : '\\ >1\\ \\mathrm{NG}'),
+      r.okDefl ? 'ok' : 'ng'));
+    steps.push({
+      t: '挠度限值（控制指标）',
+      n: '限值分母按材料取（铝 180、钢与不锈钢 250）。控制跨度 l<sub>0</sub> 按受力形式自动判定：' +
+         '单跨取 L，双跨取最大挠度所在跨，悬臂取 2×悬挑总长（含飞边，负飞边自动缩短）。' +
+         '再与绝对限值取小，并给出哪一项控制。',
+      L: L7
+    });
+
+    if (inp.isRoof) {
+      const gravityRows = [];
+      gravityRows.push(fxl('面板重力放大系数', 'k_G', '', '1.1'));
+      r.gravityChecks.forEach(function (check) {
+        gravityRows.push(fxl('重力挠度（第' + check.span + '项）', 'd_G', '',
+          nn(check.d, 3) + '\\ \\mathrm{mm}'));
+        gravityRows.push(fxl('重力挠度限值', '[d_G]', '\\frac{L}{500}',
+          nn(check.L * 1000, 1) + '/500=' + nn(check.lim, 3) + '\\ \\mathrm{mm}'));
+        gravityRows.push(fxl('利用率', 'd_G/[d_G]', '',
+          nn(check.ratio, 3), check.ok ? 'ok' : 'ng'));
+      });
+      steps.push({t: '采光顶重力单独作用挠度', n: '立柱自重不放大；面板重力乘 1.1，取垂直于龙骨的分量。双跨逐跨检查，悬臂控制跨度沿用 2×悬挑总长。此项不通过时总结果不通过。', L: gravityRows});
+    }
+
+    /* ⑧ 强度 */
+    const L8 = [];
+    L8.push(fxl('应力', '\\sigma', '\\frac{M_{d}}{W_{x}}',
+      '\\frac{' + nn(r.Md * 1e6, 0) + '}{' + nn(r.Wx, 0) + '}=\\ ' + nn(r.sigma, 1) + '\\ \\mathrm{MPa}'));
+    L8.push(fxl('验算', '\\sigma \\leq f', '',
+      nn(r.sigma, 1) + ' \\leq ' + nn(r.f, 0) + '\\quad \\mathrm{' + (r.okStrength ? 'OK' : 'NG') + '}',
+      r.okStrength ? 'ok' : 'ng'));
+    L8.push(fxl('利用率', '\\sigma/f', '', nn(r.rStrength, 3) + (r.okStrength ? '\\ \\leq 1' : '\\ >1'),
+      r.okStrength ? 'ok' : 'ng'));
+    steps.push({
+      t: '强度验算',
+      n: '受弯构件正应力，取弹性截面模量。碳钢 f 已按板件厚度分组取用。',
+      L: L8
+    });
+
+    return steps;
+  }
+
+  /* ================= 事件 ================= */
+  function setAllSteps(open) {
+    document.querySelectorAll('#fxSteps .fxstep').forEach(function (d) { d.open = open; });
+  }
+
+  /* ---------- 直接在图上改尺寸 ---------- */
+  /* 输入过程中只记原文、不重算 —— 让用户可以敲完整再生效；
+     等回车或失焦（change）时才落定并重画几何。 */
+  function onSecEdit(e, commit) {
+    const t = e.target;
+    if (!t || !t.getAttribute) return;
+    const k = t.getAttribute('data-dim');
+    if (!k) return;
+    dimRaw[curType][k] = t.value;
+    if (!commit) return;
+    const v = parseFloat(t.value);
+    const ok = isFinite(v) && v > 0;
+    if (ok) {
+      dimValues[curType][k] = v;
+      dimRaw[curType][k] = t.value.trim();   /* 保留用户敲的原样，别把 3.0 改成 3 */
+    } else {
+      dimRaw[curType][k] = String(dimValues[curType][k]);   /* 非法就退回上一次的合法值 */
+    }
+    render();
+  }
+  function onBeamEdit(e, commit) {
+    const t = e.target;
+    if (!t || !t.getAttribute) return;
+    const k = t.getAttribute('data-bk');
+    if (!k) return;
+    beamRaw[k] = t.value;
+    if (!commit) return;
+    const v = parseFloat(t.value);
+    if (isFinite(v)) {
+      let nv = v;
+      if (k === 'L') nv = Math.max(nv, 0.05);
+      if (k === 'wk') nv = Math.max(nv, 0);
+      if (k === 'ang') nv = clampAng(nv);
+      if (k === 'lk') nv = Math.max(nv, 0);
+      beamVals[k] = nv;
+      beamRaw[k] = t.value.trim();   /* 保留用户敲的原样 */
+    } else {
+      beamRaw[k] = String(beamVals[k]);   /* 非法就退回上一次的合法值 */
+    }
+    render();
+  }
+
+  function applyMode() {
+    const basic = (mode === 'basic');
+    document.body.classList.toggle('m-basic', basic);
+    el.advBox.hidden = basic;
+    el.cardLoad.hidden = basic;
+    el.rowReg.hidden = basic;
+    el.rowPanel.hidden = basic;
+    el.rowIg.hidden = basic;
+    el.lblBasic.classList.toggle('on', basic);
+    el.lblAdv.classList.toggle('on', !basic);
+    el.modeSw.classList.toggle('on', !basic);
+    el.modeSw.setAttribute('aria-checked', basic ? 'false' : 'true');
+
+    /* 下拉按模式重建，越界的选项自动落回基础项 */
+    buildSecOptions();
+    buildMatOptions();
+    buildFormOptions();
+
+    if (basic) {
+      /* 基础模式的隐含取值：全国 / 玻璃 20 mm / 7 度 0.10g */
+      el.reg.value = '全国';
+      el.pm.value = '玻璃';
+      el.pt.value = '20';
+      el.ig.value = '0.08';
+      /* 切回基础等于放弃所有手动覆盖，回到自动值（隐藏状态下也保持一致） */
+      OVERRIDE.forEach(function (k) {
+        el[k].value = '';
+        el[k].setAttribute('data-auto', '1');
+      });
+    }
+    render();
+  }
+  function switchMode(m) { if (mode === m) return; mode = m; applyMode(); }
+
+  el.modeSw.addEventListener('click', function () { switchMode(mode === 'basic' ? 'adv' : 'basic'); });
+  el.lblBasic.addEventListener('click', function () { switchMode('basic'); });
+  el.lblAdv.addEventListener('click', function () { switchMode('adv'); });
+
+  el.secPrev.addEventListener('input', function (e) { onSecEdit(e, false); });
+  el.secPrev.addEventListener('change', function (e) { onSecEdit(e, true); });
+  el.beamPrev.addEventListener('input', function (e) { onBeamEdit(e, false); });
+  el.beamPrev.addEventListener('change', function (e) { onBeamEdit(e, true); });
+
+  el.sec.addEventListener('change', function (e) {
+    if (!e.target.matches('input[name="section-type"]') || !e.target.checked) return;
+    curType = e.target.value;
+    render();
+  });
+  ['mat', 'form', 'B', 'reg', 'pm', 'pt', 'ig'].concat(OVERRIDE).forEach(function (id) {
+    const e = el[id];
+    if (!e) return;
+    const isOv = OVERRIDE.indexOf(id) >= 0;
+    ['input', 'change'].forEach(function (t) {
+      e.addEventListener(t, function () {
+        if (isOv) {
+          /* 有内容 = 手动锁定；清空 = 交回自动 */
+          e.setAttribute('data-auto', String(e.value).trim() === '' ? '1' : '0');
+        }
+        render();
+      });
+    });
+  });
+
+  el.fxOpen.addEventListener('click', function () { setAllSteps(true); });
+  el.fxClose.addEventListener('click', function () { setAllSteps(false); });
+  el.printBtn.addEventListener('click', function () { window.print(); });
+
+  let prevOpen = null;
+  window.addEventListener('beforeprint', function () {
+    prevOpen = [];
+    document.querySelectorAll('#fxSteps .fxstep').forEach(function (d) { prevOpen.push(d.open); d.open = true; });
+  });
+  window.addEventListener('afterprint', function () {
+    if (!prevOpen) return;
+    document.querySelectorAll('#fxSteps .fxstep').forEach(function (d, i) {
+      d.open = prevOpen[i] !== undefined ? prevOpen[i] : true;
+    });
+    prevOpen = null;
+  });
+
+  /* 启动（默认基础模式） */
+  document.getElementById('verLine').textContent = '版本 1.12.9 · 2026-10-25 12:37';
+  applyMode();
+})();
+</script>
+<script id="glass-rib-core">/* GlassRib v1.3.2. Units: mm, N, MPa.
+ * T/CECS 1099-2022: 5.2.5, 5.3.4/6/7, 5.4.2/3,
+ * 5.5.1/2, A.0.1/2/3, B.0.1/2. Strength: JGJ 113-2015 4.1.9/10.
+ * Pure model, reusable by mullion.html. User-specified assumptions:
+ * G_interlayer=11.3 MPa for both durations; intact design loads retained
+ * after reducing one ply; remaining plies reassembled as an n-1 laminate.
+ */
+(function(root){
+'use strict';
+const E=72000,nu=.2,Gglass=E/(2*(1+nu)),rho=25.6;
+const strengths={FT:[[59,30,67,34],[51,26,58,29],[42,21,47,24]],HS:[[40,20,44,22],[34,17,38,19],[28,14,32,16]],AN:[[20,6,22,7],[17,5,19,6],[14,4,16,5]]};
+function positive(x,name,zero=false){if(!Number.isFinite(x)||(zero?x<0:x<=0))throw Error(name+(zero?'须为非负有限数':'须为正有限数'));return x;}
+function strength(type,t){
+ const band=t>=4&&t<=12?0:t>=15&&t<=19?1:t>=20?2:-1;
+ if(band<0||!strengths[type])throw Error('玻璃强度表适用厚度为 4～12、15～19、≥20 mm，种类为 FT / HS / AN');
+ return [...strengths[type][band]];
+}
+function geometry(n,t,s,h){
+ if(!Number.isInteger(n)||n<1||n>12)throw Error('玻璃片数应为 1～12 的整数');
+ positive(t,'玻璃厚度');positive(s,'胶片厚度',n===1);positive(h,'肋高');
+ const glassT=n*t,total=glassT+(n-1)*s,A=glassT*h,Ix=glassT*h**3/12,Wx=glassT*h*h/6;
+ if(![total,A,Ix,Wx].every(Number.isFinite))throw Error('截面尺寸超出数值范围');
+ return {n,t,s,h,glassT,total,A,Ix,Wx,IyFree:n*h*t**3/12,IyFull:h*(n*t)**3/12};
+}
+function laminate(n,t,s,h,L,G,psi=9.88){
+ const g=geometry(n,t,s,h);positive(L,'跨度');positive(G,'胶片剪切模量',true);positive(psi,'边界参数');
+ const A1=t*h,I1=h*t**3/12,IyFull=g.IyFull,J1=h*t**3/3,JFull=h*(n*t)**3/3;
+ const eta=n===1?1:G===0?0:1/(1+E*I1*s/(12*G*h*L*L)*(n*n*A1*(n+1)/IyFull)*psi);
+ const Iy=1/(eta/IyFull+(1-eta)/(n*I1));
+ const etaT=n===1?1:G===0?0:1/(1+(n+1)*t*s/n*Gglass*(L*L+h*h)/(G*L*L*h*h));
+ const J=1/(etaT/JFull+(1-etaT)/(n*J1));
+ return {...g,Iy,te:Math.cbrt(12*Iy/h),J,eta,etaT,J1,JFull,I1};
+}
+function spring(Es,width,thickness){positive(Es,'结构胶弹性模量',true);positive(width,'有效粘接宽度',true);positive(thickness,'结构胶厚度');return Es*width/(3*thickness);}
+function critical(n,t,s,h,L,G,k){
+ positive(k,'侧向线刚度',true);
+ const p=laminate(n,t,s,h,L,G);
+ const i02=(p.Ix+p.IyFull)/p.A;
+ let halfWave=1,a=(L/Math.PI)**2,Nw=null,Ny=E*p.Iy/a,Ncr=Ny,Mplus,Mminus,method;
+ if(k>0){
+  method='A.0.3 / B.0.1～B.0.2';
+  halfWave=Math.max(L/Math.PI*(k/(E*p.Iy))**.25,1);
+  a=(L/(halfWave*Math.PI))**2;Nw=(Gglass*p.J+.25*a*k*h*h)/i02;Ny=E*p.Iy/a+a*k;
+  const coupling=k*k*h*h*a*a/i02;
+  Ncr=2*(Nw*Ny-coupling/4)/(Nw+Ny+Math.sqrt((Nw-Ny)**2+coupling));
+  const y=h/2,z=y*k*L**3,Q=Math.PI**2*k*L**4*Gglass*p.J+Math.PI**4*y*y*k*L*L*E*p.Iy+Math.PI**6*E*p.Iy*Gglass*p.J;
+  const D=Math.sqrt(z*z+Q),scale=.95/(Math.PI**2*L);
+  Mplus=scale*(z+D);Mminus=scale*Q/(D+z);
+ }else{
+  method='A.0.1 / 5.4.3';
+  // Uniform load, no intermediate lateral support: C1=1.15, C2=0.47.
+  // Positive pressure acts toward the shear centre: y1=-h/2.
+  const z=.47*h/2,Q=Gglass*p.J*L*L/(E*p.Iy*Math.PI**2),D=Math.sqrt(z*z+Q),scale=1.15*Math.PI**2*E*p.Iy/(L*L);
+  Mplus=scale*Q/(D+z);Mminus=scale*(D+z);
+ }
+ if(![Ncr,Mplus,Mminus].every(x=>Number.isFinite(x)&&x>0))throw Error('临界荷载超出有效数值范围');
+ return {...p,halfWave,a,i02,Nw,Ny,Ncr,Mplus,Mminus,Mcr:Math.min(Mplus,Mminus),k,method};
+}
+function reduction(lambda,alpha,lambda0){
+ positive(lambda,'正则化长细比',true);
+ const phi=.5*(1+alpha*(lambda-lambda0)+lambda*lambda);
+ if(lambda<=lambda0)return {phi,chi:1};
+ const rad=phi*phi-lambda*lambda;if(rad<0)throw Error('稳定系数根号项为负');
+ return {phi,chi:Math.min(1,1/(phi+Math.sqrt(rad)))};
+}
+function stability(p){
+ const {A,Wx,N,M,fLong,fShort,critical:c,mode}=p;
+ ['A','Wx','fLong','fShort'].forEach(k=>positive(p[k],k));positive(N,'轴力绝对值',true);positive(M,'弯矩绝对值',true);
+ const lambdaB=Math.sqrt(Wx*1.667*fShort/c.Mcr),b=reduction(lambdaB,.45,.15),muB=M/(b.chi*Wx*fShort);
+ if(mode==='hanging')return {lambdaB,chiB:b.chi,phiB:b.phi,muB,eta:muB,ok:muB<=1};
+ if(mode!=='seated')throw Error('请选择吊式或坐式');
+ const lambdaC=Math.sqrt(A*1.667*fLong/c.Ncr),q=reduction(lambdaC,.97,.63),muN=N/(q.chi*A*fLong);
+ const etaCode=muN**1.5+muB**1.5,etaMixed=muN+muB**1.5;
+ // Reference worksheet mixed-duration envelope. For muN<=0.5 this
+ // linear axial term is at least as restrictive as the code's m=1.5 term.
+ return {lambdaB,chiB:b.chi,phiB:b.phi,muB,lambdaC,chiC:q.chi,phiC:q.phi,muN,etaCode,etaMixed,eta:Math.max(etaCode,etaMixed),ok:muN<=.5&&etaCode<=1&&etaMixed<=1};
+}
+function compute(p){
+ if(!Number.isInteger(p.n)||p.n<1||p.n>12)throw Error('配置片数应为 1～12 的整数');
+ positive(p.t,'玻璃厚度');positive(p.ts,'胶片厚度',p.n===1);positive(p.h,'肋高');
+ // The original configuration supplies full design loads only.
+ // No intact-section stiffness or intact-section checks are calculated.
+ const original={n:p.n,total:p.n*p.t+(p.n-1)*p.ts,A:p.n*p.t*p.h},f=strength(p.type,p.t);
+ ['L','B','div','extra','seal'].forEach(k=>positive(p[k],k));
+ ['wk','pt','alpha','G','Es','bond'].forEach(k=>positive(p[k],k,true));
+ if(!['national','guangdong'].includes(p.profile)||!['rib','panel'].includes(p.gravity)||!['yes','no'].includes(p.restraint)||!['hanging','seated'].includes(p.mode))throw Error('计算选项无效');
+ const gE=p.profile==='guangdong'?1.4:1.3,Ek=5*p.alpha*rho*(p.pt+original.A/p.B)/1000;
+ const pWind=1.5*p.wk+.5*gE*Ek,pEarth=.2*p.wk+gE*Ek,pd=Math.max(pWind,pEarth),qd=pd*p.B/1000,qk=p.wk*p.B/1000;
+ const ribWeight=p.extra*rho*p.L*original.A/1e6,panelWeight=p.gravity==='panel'?p.extra*rho*p.L*p.B*p.pt/1e6:0;
+ const N=1.3*(ribWeight+panelWeight),M=qd*p.L*p.L/8,load={gE,Ek,pWind,pEarth,pd,qd,qk,N,M,ribWeight,panelWeight,Rh:qd*p.L/2};
+ if(!Object.values(load).every(Number.isFinite))throw Error('荷载超出数值范围');
+ const n=p.n-1,label='减去一片';
+ if(n===0)return {original,f,load,result:{n,label,ok:false,empty:true,reason:'减去一片后无剩余承载玻璃'},ok:false};
+ if(p.restraint==='yes'&&p.bond>original.total)throw Error('有效粘接宽度不能大于配置总厚度');
+ const g=geometry(n,p.t,p.ts,p.h),bond=Math.min(p.bond,g.total),k=p.restraint==='yes'?spring(p.Es,bond,p.seal):0;
+ const c=critical(n,p.t,p.ts,p.h,p.L,p.G,k),st=stability({A:g.A,Wx:g.Wx,N,M,fLong:f[3],fShort:f[2],critical:c,mode:p.mode});
+ const stressB=M/g.Wx,stressN=N/g.A,etaStrength=stressB/f[0]+stressN/f[1],defl=5*qk*p.L**4/(384*E*g.Ix),lim=p.L/p.div,etaDefl=defl/lim;
+ if(![etaStrength,defl,etaDefl,st.eta].every(Number.isFinite))throw Error('验算结果超出数值范围');
+ const result={n,label,g,c,st,bond,stressB,stressN,etaStrength,defl,lim,etaDefl,ok:etaStrength<=1&&etaDefl<=1&&st.ok};
+ return {original,f,load,result,ok:result.ok};
+}
+root.GlassRib={E,nu,Gglass,rho,strength,geometry,laminate,spring,critical,reduction,stability,compute};
+})(typeof globalThis!=='undefined'?globalThis:this);
+</script>
+<script id="glass-rib-ui">(function(){
+'use strict';
+const integrated=!!document.getElementById('rib-inputs'),prefix=integrated?'rib-':'';
+const $=id=>document.getElementById(prefix+id),R=GlassRib;
+const s={mode:'hanging',profile:'national',gravity:'rib',restraint:'yes',n:3,t:12,ts:1.52,type:'FT',inter:'SGP',L:6000,B:1500,h:350,wk:2,pt:24,alpha:.08,G:11.3,Es:.4,bond:20,seal:20,extra:1.1,div:360};
+let lastResult=null;
+const esc=x=>String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+const f=(x,n=2)=>Number.isFinite(x)?Number(x.toFixed(n)).toLocaleString('en-US',{maximumFractionDigits:n}):'—';
+const num=(x,n=4)=>Number.isFinite(x)?String(Number(x.toFixed(n))):'—';
+const comparison=(x,limit)=>num(x)+'\\ '+(x<=limit?'\\leq ': '> ')+limit;
+function line(x,y,a,b,c='#91a8c5',extra=''){return '<line x1="'+x+'" y1="'+y+'" x2="'+a+'" y2="'+b+'" stroke="'+c+'" '+extra+'/>';}
+function txt(x,y,t,size=14,anchor='middle',color='#52677a'){return '<text x="'+x+'" y="'+y+'" text-anchor="'+anchor+'" font-size="'+size+'" fill="'+color+'">'+esc(t)+'</text>';}
+function box(key,value,x,y,w=80,label=''){
+ return '<foreignObject x="'+x+'" y="'+y+'" width="'+w+'" height="32"><div xmlns="http://www.w3.org/1999/xhtml" class="dbox">'+(label?'<i>'+label+'</i>':'')+'<input type="number" step="any" data-key="'+key+'" aria-label="'+esc(label||key)+'" value="'+(value===null?'':value)+'"/></div></foreignObject>';
+}
+function sel(key,value,list,x,y,w=76){return '<foreignObject x="'+x+'" y="'+y+'" width="'+w+'" height="32"><div xmlns="http://www.w3.org/1999/xhtml" class="dbox"><select aria-label="'+esc(key)+'" data-key="'+key+'">'+list.map(([v,l])=>'<option value="'+v+'"'+(String(v)===String(value)?' selected':'')+'>'+l+'</option>').join('')+'</select></div></foreignObject>';}
+function arrow(x,y,a,b,color){return line(x,y,a,b,color,'stroke-width="1.8"')+'<path d="M'+(a-5)+','+(b-6)+' L'+a+','+b+' L'+(a+5)+','+(b-6)+'" fill="none" stroke="'+color+'" transform="rotate('+(Math.atan2(b-y,a-x)*180/Math.PI-90)+' '+a+' '+b+')"/>';}
+function sectionFigure(){
+ const t=s.t>0&&Number.isFinite(s.t)?s.t:1,ts=s.ts>0&&Number.isFinite(s.ts)?s.ts:1,n=Math.max(0,s.n-1);
+ const total=n?n*t+(n-1)*ts:0,sc=total>0?Math.min(3,148/total):3,start=224-total*sc/2;
+ let o='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 390" role="group" aria-label="玻璃肋共用截面参数">';
+ o+=txt(16,27,'配置片数',14,'start')+sel('n',s.n,Array.from({length:12},(_,i)=>[i+1,i+1]),92,7,62)+txt(323,27,'mm',14,'end');
+ o+=line(start,65,start+total*sc,65)+line(start,60,start,70)+line(start+total*sc,60,start+total*sc,70)+txt(224,55,n?f(n*s.t+(n-1)*s.ts):'—');
+ let x=start,glassAnchor=start+t*sc/2,filmAnchor=start+t*sc+ts*sc/2;
+ for(let i=0;i<n;i++){
+ if(i){o+='<rect data-layer="film" x="'+x+'" y="83" width="'+ts*sc+'" height="144" fill="#5684d6" stroke="#2358a4" stroke-width=".6"/>';x+=ts*sc;}
+ o+='<rect data-layer="glass" x="'+x+'" y="83" width="'+t*sc+'" height="144" fill="#dceef3" stroke="#14505f" stroke-width="1"/>';x+=t*sc;
+ }
+ o+=line(128,83,128,227)+line(123,83,133,83)+line(123,227,133,227)+txt(59,140,'肋高 h',14)+box('h',s.h,17,149,85);
+ if(n)o+=line(glassAnchor,227,88,257,'#b7c6d9','stroke-dasharray="3 3"');
+ else o+=txt(224,157,'无剩余玻璃',14);
+ if(n>1)o+=line(filmAnchor,227,252,257,'#b7c6d9','stroke-dasharray="3 3"');
+ o+=txt(88,279,'单片玻璃',14)+txt(252,279,'单层胶片',14);
+ o+=box('t',s.t,43,289,90)+box('ts',s.ts,207,289,90);
+ o+=sel('type',s.type,[['FT','FT'],['HS','HS'],['AN','AN']],43,329,90)+sel('inter',s.inter,[['SGP','SGP'],['PVB','PVB']],207,329,90);
+ return o+txt(170,382,'减去1片 · 剩余'+n+'片参与计算',13.5)+'</svg>';
+}
+function systemFigure(){
+ const x=172,top=50,bottom=285,hanging=s.mode==='hanging';
+ let o='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 402" role="group" aria-label="简化的玻璃肋受力模型">';
+ o+=line(x,top,x,bottom,'#345773','stroke-width="3"');
+ for(const y of[top,bottom]){
+ const pin=(y===top)===hanging;
+ o+='<path d="M'+x+','+y+' l19,-11 v22 Z" fill="#fff" stroke="#4b596b"/>';
+ o+=pin?line(x+23,y-17,x+23,y+17,'#4b596b'):'<circle cx="'+(x+23)+'" cy="'+(y-6)+'" r="3" fill="#fff" stroke="#4b596b"/><circle cx="'+(x+23)+'" cy="'+(y+6)+'" r="3" fill="#fff" stroke="#4b596b"/>'+line(x+29,y-17,x+29,y+17,'#4b596b');
+ o+=txt(218,y+5,pin?'固定铰':'竖向滑动',13.5,'start');
+ }
+ o+=arrow(137,hanging?100:235,137,hanging?63:272,'#b98334')+txt(103,hanging?83:260,hanging?'轴拉':'轴压',13.5);
+ for(const y of[110,155,200,245])o+=arrow(288,y,x+6,y,'#4488be');
+ o+=line(49,top,49,bottom)+line(44,top,70,top)+line(44,bottom,70,bottom)+txt(52,153,'L · mm',13.5)+box('L',s.L,8,163,87);
+ o+=txt(252,147,'Wk · kPa',13.5)+box('wk',s.wk,212,163,104);
+ o+=line(92,333,249,333)+line(92,328,92,338)+line(249,328,249,338)+box('B',s.B,120,317,104);
+ return o+txt(172,368,'B · 面板从属宽度 / mm',13.5)+txt(172,392,'横向两端简支 · 正负风包络',13.5)+'</svg>';
+}
+function supportFigure(){
+ let o='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 257" role="group" aria-label="面板与玻璃肋连续胶缝">';
+ o+='<rect x="44" y="35" width="252" height="16" fill="#dceef3" stroke="#14505f"/><rect x="144" y="51" width="48" height="26" fill="#ccd7e9" stroke="#8b9dba"/><rect x="144" y="77" width="48" height="91" fill="#dceef3" stroke="#14505f"/>';
+ o+=txt(291,26,'面板',13.5)+txt(168,149,'肋',14);
+ o+=line(209,51,209,77)+txt(270,64,'厚度 ts',13.5)+box('seal',s.seal,224,77,92);
+ o+=line(144,185,192,185)+line(144,179,144,191)+line(192,179,192,191);
+ o+=txt(92,213,'粘接宽度 d',13.5)+box('bond',s.bond,150,194,100);
+ return o+txt(170,247,'尺寸单位 mm',13.5)+'</svg>';
+}
+function fieldRow(key,label,unit){return '<div class="row"><label for="'+prefix+key+'">'+label+'</label><input id="'+prefix+key+'" data-key="'+key+'" type="number" step="any" value="'+(s[key]??'')+'"/><span class="unit">'+unit+'</span></div>';}
+function selectRow(key,label,list){return '<div class="row"><label for="'+prefix+key+'">'+label+'</label><select id="'+prefix+key+'" data-key="'+key+'">'+list.map(([v,l])=>'<option value="'+v+'"'+(s[key]===v?' selected':'')+'>'+l+'</option>').join('')+'</select></div>';}
+function renderInputs(){
+ $('sectionFigure').innerHTML=sectionFigure();$('systemFigure').innerHTML=systemFigure();$('supportFigure').innerHTML=supportFigure();
+ $('modeBox').innerHTML=selectRow('mode','支承形式',[['hanging','吊式'],['seated','坐式']]);
+ $('choices').innerHTML=selectRow('profile','荷载口径',[['national','国标'],['guangdong','粤标']])+selectRow('gravity','重力传递',[['rib','仅承担肋自重'],['panel','肋＋面板自重']])+selectRow('restraint','面板侧向支撑',[['yes','考虑连续胶缝支撑'],['no','不考虑']]);
+ $('loadFields').innerHTML=fieldRow('pt','面板玻璃总厚度','mm')+fieldRow('alpha','地震影响系数 αmax','')+fieldRow('extra','自重附加系数','')+fieldRow('div','挠度限值 L /','');
+ $('moduli').innerHTML=fieldRow('G','胶片指定 G','MPa')+fieldRow('Es','结构胶 E','MPa');
+ $('supportCard').hidden=s.restraint==='no';
+}
+const fx=(tag,sym,sub,result)=>({tag,sym,sub,result});
+function sections(r){
+ const v=r.result;
+ if(v.empty)return [{title:'损失一片后无剩余承载玻璃',note:'无法形成承载截面，本工况不满足要求。',rows:[]}];
+ const {g,c,st}=v,l=r.load,ff=r.f,n=v.n,t=s.t,ts=s.ts;
+ const u=(x,unit,d=3)=>num(x,d)+'\\ \\mathrm{'+unit+'}';
+ const rows=[];
+ rows.push({title:'减片后的截面与材料',note:'JGJ 113-2015 表4.1.9、4.1.10；强度用端面值，稳定用边缘值。'+ '按指定的 n−1 简化模型计算；完整构造荷载保持。',rows:[
+ fx('片数','n',s.n+'-1',String(n)),
+ fx('厚度','T=nt+(n-1)s',n+'\\times '+t+'+('+n+'-1)\\times '+ts,u(g.total,'mm')),
+ fx('面积','A=nth',n+'\\times '+t+'\\times '+s.h,u(g.A,'mm^2',0)),
+ fx('强轴惯性矩','I_x=\\frac{nth^3}{12}',n+'\\times '+t+'\\times '+s.h+'^3/12',u(g.Ix,'mm^4',0)),
+ fx('截面模量','W_x=2I_x/h','2\\times '+num(g.Ix,0)+'/'+s.h,u(g.Wx,'mm^3',0)),
+ fx('端面强度','f_{e,S},f_{e,L}',s.type+'\\quad t='+t,u(ff[0],'MPa')+'\\ ;\\ '+u(ff[1],'MPa')),
+ fx('边缘强度','f_{b,S},f_{b,L}',s.type+'\\quad t='+t,u(ff[2],'MPa')+'\\ ;\\ '+u(ff[3],'MPa'))
+ ]});
+ rows.push({title:'弱轴与扭转等效刚度',note:'T/CECS 1099-2022 第5.2.5条、附录A.0.2。均布荷载 Ψ=9.88。按指定假定，短期和长期共用胶片 G='+num(s.G)+' MPa，不按名称自动查表。',rows:[
+ fx('剪切组合','\\eta=\\left[1+\\frac{EI_1s}{12G_ihL^2}\\frac{n^2A_1(n+1)}{I_{y,full}}\\Psi\\right]^{-1}','n='+n+',\\ G_i='+s.G+',\\ L='+s.L,num(c.eta,6)),
+ fx('等效厚度','t_{eff}=\\left[\\frac{\\eta}{(nt)^3}+\\frac{1-\\eta}{nt^3}\\right]^{-1/3}','\\eta='+num(c.eta,6),u(c.te,'mm')),
+ fx('弱轴惯性矩','I_{y,eff}=h t_{eff}^3/12',s.h+'\\times '+num(c.te,3)+'^3/12',u(c.Iy,'mm^4',0)),
+ fx('扭转组合','\\eta_T=\\left[1+\\frac{(n+1)ts}{n}\\frac{G_g(L^2+h^2)}{G_iL^2h^2}\\right]^{-1}','G_g='+R.Gglass,num(c.etaT,6)),
+ fx('扭转惯性矩','J_{eff}=\\left[\\frac{\\eta_T}{J_{full}}+\\frac{1-\\eta_T}{nJ_1}\\right]^{-1}','J_1='+num(c.J1,0)+',\\ J_{full}='+num(c.JFull,0),u(c.J,'mm^4',0))
+ ]});
+ rows.push({title:'荷载与组合',note:'国标／粤标沿用已确认的参考文件组合口径。荷载按完整配置取值；承载力和刚度仅按减片后的截面计算。',rows:[
+ fx('取荷载面积','A_0=n_0th',s.n+'\\times '+t+'\\times '+s.h,u(r.original.A,'mm^2',0)),
+ fx('地震面荷载','E_k=5\\alpha_{max}\\gamma_g(t_p+A_0/B)10^{-3}','5\\times '+s.alpha+'\\times '+R.rho+'\\times('+s.pt+'+'+num(r.original.A,0)+'/'+s.B+')\\times 10^{-3}',u(l.Ek,'kPa',4)),
+ fx('风主导','p_{d,W}=1.5w_k+0.5\\gamma_E E_k','1.5\\times '+s.wk+'+0.5\\times '+l.gE+'\\times '+num(l.Ek),u(l.pWind,'kPa',4)),
+ fx('地震主导','p_{d,E}=0.2w_k+\\gamma_E E_k','0.2\\times '+s.wk+'+'+l.gE+'\\times '+num(l.Ek),u(l.pEarth,'kPa',4)),
+ fx('控制组合','p_d=\\max(p_{d,W},p_{d,E})','\\max('+num(l.pWind)+','+num(l.pEarth)+')',u(l.pd,'kPa',4)),
+ fx('线荷载','q_d=p_dB/1000',num(l.pd)+'\\times '+s.B+'/1000',u(l.qd,'N/mm',4)),
+ fx('标准线载','q_k=w_kB/1000',s.wk+'\\times '+s.B+'/1000',u(l.qk,'N/mm',4)),
+ fx('肋自重','G_{rib,k}=c_G\\gamma_gLA_0 10^{-6}',s.extra+'\\times '+R.rho+'\\times '+s.L+'\\times '+num(r.original.A,0)+'\\times10^{-6}',u(l.ribWeight,'N')),
+ fx('面板重力','G_{panel,k}=c_G\\gamma_gLBt_p10^{-6}',s.gravity==='panel'?s.extra+'\\times '+R.rho+'\\times '+s.L+'\\times '+s.B+'\\times '+s.pt+'\\times10^{-6}':'\\mathrm{由独立支承传递}',u(l.panelWeight,'N')),
+ fx('轴力','|N_d|=1.3(G_{rib,k}+G_{panel,k})','1.3\\times('+num(l.ribWeight)+'+'+num(l.panelWeight)+')',u(l.N,'N')),
+ fx('水平反力','R_h=q_dL/2',num(l.qd)+'\\times '+s.L+'/2',u(l.Rh/1000,'kN'))
+ ]});
+ rows.push({title:'强度与挠度',note:'端面强度采用短期弯曲＋长期轴力的利用比相加。吊式为轴拉；坐式取不利的压侧包络。挠度 L/'+s.div+' 为参考书的设计控制值。',rows:[
+ fx('弯矩','M_d=q_dL^2/8',num(l.qd)+'\\times '+s.L+'^2/8',u(l.M/1e6,'kN\\cdot m')),
+ fx('弯曲应力','\\sigma_M=M_d/W_x',num(l.M,0)+'/'+num(g.Wx,0),u(v.stressB,'MPa')),
+ fx('轴向应力','\\sigma_N=|N_d|/A',num(l.N)+'/'+num(g.A,0),u(v.stressN,'MPa')),
+ fx('强度比','\\eta_\\sigma=\\sigma_M/f_{e,S}+\\sigma_N/f_{e,L}',num(v.stressB)+'/'+ff[0]+'+'+num(v.stressN)+'/'+ff[1],comparison(v.etaStrength,1)),
+ fx('风挠度','\\delta_k=\\frac{5q_kL^4}{384EI_x}','\\frac{5\\times '+num(l.qk)+'\\times '+s.L+'^4}{384\\times '+R.E+'\\times '+num(g.Ix,0)+'}',u(v.defl,'mm')),
+ fx('限值','[\\delta]=L/'+s.div,s.L+'/'+s.div,u(v.lim,'mm'))
+ ]});
+ const bRows=[];
+ if(c.k>0)bRows.push(
+ fx('有效胶宽','d_a','\\min('+s.bond+','+num(g.total)+')',u(v.bond,'mm')),
+ fx('侧向刚度','k_a=E_s d_a/(3t_s)',s.Es+'\\times '+num(v.bond)+'/(3\\times '+s.seal+')',u(c.k,'N/mm^2',5)),
+ fx('临界弯矩','M_{cr}^{\\pm}=\\frac{0.95}{\\pi^2L}\\left[y_2k_aL^3+\\sqrt{y_2^2k_a^2L^6+\\pi^2k_aL^4G_gJ_{eff}+\\pi^4y_2^2k_aL^2EI_{y,eff}+\\pi^6EI_{y,eff}G_gJ_{eff}}\\right]','y_{2,+}=h/2,\\quad y_{2,-}=-h/2',u(c.Mplus/1e6,'kN\\cdot m')+'\\ ;\\ '+u(c.Mminus/1e6,'kN\\cdot m'))
+ );
+ else bRows.push(fx('临界弯矩','M_{cr}=\\frac{C_1\\pi^2EI_{y,eff}}{L^2}\\left[C_2y_1+\\sqrt{(C_2y_1)^2+\\frac{G_gJ_{eff}L^2}{EI_{y,eff}\\pi^2}}\\right]','C_1=1.15,\\ C_2=0.47,\\ y_{1,+}=-h/2,\\ y_{1,-}=h/2',u(c.Mplus/1e6,'kN\\cdot m')+'\\ ;\\ '+u(c.Mminus/1e6,'kN\\cdot m')));
+ bRows.push(
+ fx('控制弯矩','M_{cr}=\\min(M_{cr}^+,M_{cr}^-)','\\min('+num(c.Mplus/1e6)+','+num(c.Mminus/1e6)+')',u(c.Mcr/1e6,'kN\\cdot m')),
+ fx('长细比','\\bar\\lambda_b=\\sqrt{\\frac{W_x(1.667f_{b,S})}{M_{cr}}}','f_{b,S}='+ff[2],num(st.lambdaB)),
+ fx('中间系数','\\Phi_b=\\frac{1+0.45(\\bar\\lambda_b-0.15)+\\bar\\lambda_b^2}{2}','\\bar\\lambda_b='+num(st.lambdaB),num(st.phiB)),
+ fx('稳定系数','\\chi_b=\\min\\left(1,\\frac{1}{\\Phi_b+\\sqrt{\\Phi_b^2-\\bar\\lambda_b^2}}\\right)','\\Phi_b='+num(st.phiB),num(st.chiB)),
+ fx('弯扭利用比','\\mu_b=\\frac{M_d}{\\chi_bW_xf_{b,S}}','\\chi_b='+num(st.chiB)+',\\ f_{b,S}='+ff[2],comparison(st.muB,1))
+ );
+ rows.push({title:'弯扭稳定',note:'T/CECS 1099-2022 第5.3.6～5.3.7条；'+(c.k>0?'连续可靠胶缝侧向支撑按A.0.3，减片有效胶宽不大于剩余截面宽度。':'不计侧向约束，按A.0.1，满跨均布荷载、跨中无侧向支点。')+'端部需有可靠抗扭约束；吊式不计轴拉对稳定的有利作用。',rows:bRows});
+ if(s.mode==='seated'){
+ const cr=[];
+ if(c.k>0)cr.push(
+ fx('半波参数','n_1=\\max\\left(\\frac{L}{\\pi}\\sqrt[4]{\\frac{k_a}{EI_{y,eff}}},1\\right)','k_a='+num(c.k,5),num(c.halfWave)),
+ fx('辅助量','a_1=(L/(n_1\\pi))^2',s.L+'^2/('+num(c.halfWave)+'\\pi)^2',u(c.a,'mm^2')),
+ fx('极回转','i_0^2=(I_x+I_{y,full})/A','('+num(g.Ix,0)+'+'+num(c.IyFull,0)+')/'+num(g.A,0),u(c.i02,'mm^2')),
+ fx('扭转项','N_\\omega=(G_gJ_{eff}+a_1k_ah^2/4)/i_0^2','G_g='+R.Gglass,u(c.Nw/1000,'kN')),
+ fx('弯曲项','N_y=EI_{y,eff}/a_1+a_1k_a','E='+R.E,u(c.Ny/1000,'kN')),
+ fx('临界轴力','N_{cr}=\\frac{N_\\omega+N_y-\\sqrt{(N_\\omega-N_y)^2+k_a^2h^2a_1^2/i_0^2}}{2}','N_\\omega='+num(c.Nw/1000)+',\\ N_y='+num(c.Ny/1000),u(c.Ncr/1000,'kN'))
+ );else cr.push(fx('临界轴力','N_{cr}=\\pi^2EI_{y,eff}/L^2','\\pi^2\\times '+R.E+'\\times '+num(c.Iy,0)+'/'+s.L+'^2',u(c.Ncr/1000,'kN')));
+ cr.push(
+ fx('长细比','\\bar\\lambda_c=\\sqrt{\\frac{A(1.667f_{b,L})}{N_{cr}}}','f_{b,L}='+ff[3],num(st.lambdaC)),
+ fx('中间系数','\\Phi_c=\\frac{1+0.97(\\bar\\lambda_c-0.63)+\\bar\\lambda_c^2}{2}','\\bar\\lambda_c='+num(st.lambdaC),num(st.phiC)),
+ fx('稳定系数','\\chi_c=\\min\\left(1,\\frac{1}{\\Phi_c+\\sqrt{\\Phi_c^2-\\bar\\lambda_c^2}}\\right)','\\Phi_c='+num(st.phiC),num(st.chiC)),
+ fx('轴压比','\\mu_N=\\frac{N_d}{\\chi_cAf_{b,L}}','\\chi_c='+num(st.chiC),comparison(st.muN,0.5)),
+ fx('短期指数','\\eta_{5.5.2}=\\mu_N^{1.5}+\\mu_b^{1.5}',num(st.muN)+'^{1.5}+'+num(st.muB)+'^{1.5}',comparison(st.etaCode,1)),
+ fx('混合包络','\\eta_{mix}=\\mu_N+\\mu_b^{1.5}',num(st.muN)+'+'+num(st.muB)+'^{1.5}',comparison(st.etaMixed,1))
+ );
+ rows.push({title:'轴压与压弯稳定',note:'T/CECS 1099-2022 第5.4.2、5.5.1～5.5.2条；临界力按'+(c.k>0?'B.0.1～B.0.2':'5.4.3')+'。轴项用长期强度与长期缺陷系数，弯项用短期值；另保留原书 μN+μb^1.5 的混合持荷包络，在 μN≤0.5 内比两项均取1.5次方更严格。',rows:cr});
+ }
+ return rows;
+}
+function renderSteps(r){
+ const prev=[...document.querySelectorAll('#'+prefix+'fxSteps details')].map(d=>d.open);
+ $('fxSteps').innerHTML=sections(r).map((p,i)=>'<details class="fxstep"'+((prev[i]??i===0)?' open':'')+'><summary>'+(i+1)+' '+p.title+'</summary><div class="fxbody"><p class="fxnote">'+p.note+'</p>'+p.rows.map(q=>'<div class="fxl"><span class="fxtag">'+q.tag+'</span><div class="fx fx-sym">'+tex2html(q.sym)+'</div><div class="fx">'+tex2html(q.sub)+'<span class="fxeq"> = </span><span class="fxres">'+tex2html(q.result)+'</span></div></div>').join('')+'</div></details>').join('');
+}
+function renderOutput(){
+ try{
+ const r=R.compute(s),v=r.result;lastResult=r;
+ const meta='<p class="rib-result-note">配置 '+s.n+' 片 − 1 片 = <b>'+v.n+' 片参与计算</b></p>';
+ if(v.empty){
+  $('status').innerHTML=meta+'<p class="ng">'+v.reason+'，无法计算利用率。</p>';
+  $('properties').innerHTML='';
+ }else{
+  const metrics=[
+   ['强度利用率',v.etaStrength,'≤ 1.00'],
+   ['挠度利用率',v.etaDefl,f(v.defl)+' / '+f(v.lim)+' mm'],
+   ['弯扭稳定利用率',v.st.muB,'≤ 1.00'],
+   ...(s.mode==='seated'?[
+    ['轴压限值利用率',v.st.muN/.5,'μN = '+f(v.st.muN,3)+'，限值 0.50'],
+    ['压弯稳定利用率',v.st.eta,'≤ 1.00']
+   ]:[])
+  ];
+  $('status').innerHTML=meta+'<div class="rib-utilization">'+metrics.map(([label,value,note])=>'<div class="item"><div class="k">'+label+'</div><div class="v '+(value<=1?'ok':'ng')+'">'+f(value,3)+'</div><div class="sub">'+note+'</div></div>').join('')+'</div>';
+  $('properties').innerHTML=[['剩余总厚度',f(v.g.total)+' mm'],['剩余玻璃面积',f(v.g.A)+' mm²'],['Ix',f(v.g.Ix/1e4)+' cm⁴'],['Wx',f(v.g.Wx/1e3)+' cm³']].map(([k,val])=>'<div><span>'+k+'</span><b>'+val+'</b></div>').join('');
+ }
+ $('loads').innerHTML='<table><tbody>'+[['风主导 / 地震主导',f(r.load.pWind,3)+' / '+f(r.load.pEarth,3)+' kPa'],['控制设计面荷载',f(r.load.pd,3)+' kPa'],['地震标准面荷载',f(r.load.Ek,3)+' kPa'],['轴力 '+(s.mode==='hanging'?'（拉）':'（压）'),f(r.load.N/1000)+' kN'],['弯矩 / 水平反力',f(r.load.M/1e6)+' kN·m / '+f(r.load.Rh/1000)+' kN']].map(([k,val])=>'<tr><td>'+k+'</td><td>'+val+'</td></tr>').join('')+'</tbody></table>';
+ $('export').disabled=false;renderSteps(r);
+ }catch(e){
+ lastResult=null;$('status').innerHTML='<b class="ng">输入需要修正</b><p>'+esc(e.message)+'</p>';
+ for(const id of['properties','loads','fxSteps'])$(id).innerHTML='';
+ $('export').disabled=true;
+ }
+}
+function render(){renderInputs();renderOutput();}
+document.addEventListener('change',e=>{
+ if(integrated&&!e.target.closest('#rib-inputs'))return;
+ const key=e.target.dataset.key;if(!key)return;
+ s[key]=e.target.type==='number'?(e.target.value.trim()===''?null:Number(e.target.value)):e.target.value;
+ if(key==='n')s.n=Number(s.n);
+ render();
+});
+$('expand').onclick=()=>document.querySelectorAll('#'+prefix+'fxSteps details').forEach(d=>d.open=true);
+$('collapse').onclick=()=>document.querySelectorAll('#'+prefix+'fxSteps details').forEach(d=>d.open=false);
+if(!integrated)$('print').onclick=()=>window.print();
+let printOpen=null;
+window.addEventListener('beforeprint',()=>{
+ if(integrated&&!document.body.classList.contains('rib-mode'))return;
+ printOpen=[...document.querySelectorAll('#'+prefix+'fxSteps details')].map(d=>{const old=d.open;d.open=true;return old;});
+});
+window.addEventListener('afterprint',()=>{
+ if(!printOpen)return;
+ document.querySelectorAll('#'+prefix+'fxSteps details').forEach((d,i)=>d.open=printOpen[i]);
+ printOpen=null;
+});
+function exportLatex(){
+ if(!lastResult)return '';
+ return ['% 玻璃肋 1.3.2；仅验算减去一片后的截面，全设计荷载。','% 端部可靠抗扭；侧向支撑取决于连续可靠胶缝；连接及胶缝强度另行验算。','% 减片刚度采用指定的 n-1 等厚重组模型，胶片模量所有持荷时间共用。','\\section{玻璃肋计算}','支承：'+(s.mode==='hanging'?'吊式':'坐式')+'；荷载口径：'+(s.profile==='national'?'国标':'粤标')+'；胶片：'+s.inter+'，指定模量 '+s.G+' MPa。','配置 '+s.n+' 片，减去1片后按 '+lastResult.result.n+' 片计算。本章验算'+(lastResult.ok?'满足':'不满足')+'。',...sections(lastResult).flatMap(p=>['\\subsection{'+p.title+'}',p.note,...p.rows.map(q=>'\\['+q.sym+'\\qquad '+q.sub+'='+q.result+'\\]')])].join('\n\n');
+}
+$('export').onclick=()=>{const tx=exportLatex();if(!tx)return;const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([tx],{type:'text/plain;charset=utf-8'}));a.download='glass-rib.tex';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);};
+globalThis.RibPreview={state:s,render,sections,exportLatex,getResult:()=>lastResult};render();
+})();
+</script>
+<script id="glass-rib-mode">(function(){
+ const byId=id=>document.getElementById(id),button=byId('glassRibBtn');
+ let active=false;
+ const h1=document.querySelector('.topbar h1');
+ function activateRib(on){
+  if(on===active)return;
+  active=on;
+  document.body.classList.toggle('rib-mode',on);
+  if(on)document.body.classList.remove('m-basic');
+  else document.body.classList.toggle('m-basic',byId('modeSw').getAttribute('aria-checked')==='false');
+  byId('metal-inputs').hidden=on;byId('metal-outputs').hidden=on;
+  byId('rib-inputs').hidden=!on;byId('rib-outputs').hidden=!on;
+  byId('metal-footer').hidden=on;byId('rib-footer').hidden=!on;
+  byId('rib-export').hidden=!on;
+  button.setAttribute('aria-pressed',String(on));
+  h1.textContent=on?'立柱计算 · 玻璃肋':'立柱（竖梃）承载力计算';
+  document.title=on?'立柱计算 · 玻璃肋':'立柱（竖梃）承载力计算';
+  if(on)RibPreview.render();
+ }
+ button.addEventListener('click',()=>activateRib(!active));
+ ['modeSw','lblBasic','lblAdv'].forEach(id=>byId(id).addEventListener('click',()=>activateRib(false)));
+ if(location.hash==='#glass-rib')activateRib(true);
+ window.addEventListener('hashchange',()=>activateRib(location.hash==='#glass-rib'));
+})();</script>
+</body>
+</html>
+
