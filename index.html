@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>留言功能测试预览</title>
+  <link rel="stylesheet" href="feedback.css" />
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --card: #ffffff;
+      --text: #111111;
+      --muted: #6b7280;
+      --line: rgba(0, 0, 0, .10);
+      --accent: #2f6feb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 48px 24px 72px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    .wrap { width: min(760px, 100%); margin: 0 auto; }
+    h1 { font-size: 24px; font-weight: 800; margin: 0 0 6px; letter-spacing: .5px; }
+    .sub { color: var(--muted); font-size: 14px; margin: 0 0 28px; min-height: 1em; }
+
+    #list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, .05);
+      transition: box-shadow .15s ease, transform .05s ease;
+    }
+    .card:hover { box-shadow: 0 12px 28px rgba(0, 0, 0, .09); }
+    .card:active { transform: scale(.995); }
+    .card a { display: block; padding: 16px 18px; text-decoration: none; color: inherit; }
+
+    /* 标题行：序号 + 名称 …… 版本号 */
+    .top { display: flex; align-items: center; gap: 10px; }
+    .idx {
+      flex: none; width: 22px; height: 22px; border-radius: 6px;
+      background: #eef2fb; color: var(--accent);
+      font-size: 12px; font-weight: 800; line-height: 22px; text-align: center;
+    }
+    .name { font-size: 16px; font-weight: 700; flex: 1 1 auto; min-width: 0; }
+    .ver {
+      flex: none; padding: 3px 9px; border-radius: 999px;
+      background: #0f172a; color: #fff;
+      font-size: 12px; font-weight: 700; letter-spacing: .3px;
+      font-variant-numeric: tabular-nums; cursor: help;
+    }
+    .note { margin-top: 6px; font-size: 13px; color: var(--muted); line-height: 1.65; }
+    .meta { margin-top: 8px; font-size: 12px; color: #9aa3b2; }
+
+    .empty {
+      background: var(--card);
+      border: 1px dashed var(--line);
+      border-radius: 12px;
+      padding: 32px 24px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.8;
+    }
+    .rule {
+      margin-top: 26px; padding-top: 16px; border-top: 1px solid var(--line);
+      font-size: 12px; color: #9aa3b2; line-height: 1.9;
+    }
+    .rule b { color: var(--muted); font-weight: 700; }
+    code {
+      background: #eef0f5;
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>计算模板 · 留言功能测试预览</h1><p style="padding:12px;background:#fff4db;border-radius:8px">PR #26 测试预览。测试留言会写入现有留言数据库，请勿填写隐私信息。</p>
+    <div class="home-meta"><p class="sub" id="count"></p><a href="#feedback">意见与建议 ↓</a></div>
+
+    <ul id="list"></ul>
+    <div class="empty" id="empty" hidden>
+      还没有模板。<br />
+      在本文件的 <code>calcs</code> 数组里加一条，这里就会出现。
+    </div>
+
+    <section aria-labelledby="developing-title" style="margin-top:28px">
+      <h2 id="developing-title" style="font-size:17px;margin:0 0 12px">developing <span style="font-size:12px;font-weight:400;color:#8a6b32">研发演示</span></h2>
+      <div class="card"><a href="https://xiaodi-k.github.io/calc-templates/developing.html">
+        <div class="top"><span class="idx">D</span><span class="name">计算实验室 · demo</span><span class="ver">v1.1.1</span></div>
+        <div class="note">内片玻璃防撞有限元：自动网格、局部荷载、挠度与主拉应力云图、网格收敛对比。后续 demo 统一收录；不作为正式项目设计结果。</div>
+        <div class="meta">1 个 demo · 2026-10-29</div>
+      </a></div>
+    </section>
+
+    <section class="feedback" id="feedback" aria-labelledby="feedback-title">
+      <div class="feedback-heading">
+        <div><h2 id="feedback-title">公开反馈箱 <span id="feedback-count"></span></h2>
+          <p>无需 GitHub 账号即可提出建议、查看讨论或参与回复。</p></div>
+        <button class="feedback-button primary" id="feedback-new" type="button">提出意见</button>
+      </div>
+      <div class="feedback-guide">公开留言对所有访客可见。昵称可以不填；请勿填写联系方式或其他隐私信息。<span>管理员回复会有独立标识。</span></div>
+      <form id="feedback-form" class="feedback-form" hidden>
+        <h3 id="feedback-form-title">发表新留言</h3>
+        <label>昵称（可选）<input id="feedback-nickname" maxlength="40" placeholder="匿名用户" autocomplete="nickname"></label>
+        <label id="feedback-title-field">主题<input id="feedback-subject" maxlength="120" placeholder="例如：希望增加某项计算功能"></label>
+        <label>意见或回复<textarea id="feedback-body-input" maxlength="4000" rows="4" required placeholder="请描述您的问题或建议（至少2个字）"></textarea></label>
+        <div id="feedback-turnstile"></div>
+        <p id="feedback-form-status" role="status"></p>
+        <div class="feedback-form-actions"><button class="feedback-button primary" id="feedback-submit" type="submit">提交</button><button class="feedback-button" id="feedback-cancel" type="button">取消</button></div>
+      </form>
+      <div class="feedback-toolbar"><span>最新留言在前 · 北京时间</span><button class="feedback-button" id="feedback-refresh" type="button">刷新留言</button></div>
+      <p class="feedback-status" id="feedback-status" role="status" aria-live="polite">正在加载留言…</p>
+      <div id="feedback-list" aria-label="公开留言列表"></div>
+      <div class="feedback-footer"><span>原 GitHub Issues 留言不会删除，仍可查看历史记录。</span><a href="https://github.com/xiaodi-k/calc-templates/issues" target="_blank" rel="noopener noreferrer">历史留言 / GitHub 管理 ↗</a></div>
+      <details class="feedback-admin"><summary>管理员登录</summary><form id="feedback-admin-form"><input id="feedback-admin-email" type="email" autocomplete="username" placeholder="管理员邮箱" required><input id="feedback-admin-password" type="password" autocomplete="current-password" placeholder="密码" required><button class="feedback-button" type="submit">登录</button><button class="feedback-button" id="feedback-logout" type="button" hidden>退出登录</button><span id="feedback-admin-status" role="status"></span></form></details>
+    </section>
+
+    <div class="rule">
+      <b>版本号怎么来的</b><br />
+      <code>1.&lt;累计版本次数&gt;</code> —— 建立那一次算第 1 版，之后每改动一次 +1；<br />
+      <code>1.&lt;累计版本次数&gt;.&lt;图示改动次数&gt;</code> —— 累计版本里属于图示类（图样、支座符号、示意图…）的次数；<br />
+      只改版本号、时间戳这类元信息不计次数。数字由 <code>version.py</code> 读 git 历史算出，不靠人工计数。
+    </div>
+  </div>
+
+<script>
+/* =================================================================
+   使用约定
+—— 每做一份计算模板，把 .html 放进本目录，然后在下面加一条记录：
+
+     {
+       name: "玻璃面板验算",
+       file: "https://xiaodi-k.github.io/calc-templates/glass-panel.html",
+       note: "一行备注，可留空",
+       ver:  "1.16.6",          // 首页卡片右上角显示的版本号
+       date: "2026-10-24"     // 最后更新日期
+     }
+
+   name：首页显示的名字
+   file：文件名，用相对路径，和 index.html 放同一个目录
+   note：一行备注，可留空
+   ver ：版本号，规则见页面下方，由 version.py 按 git 历史算出
+   date：最后更新日期，同上
+
+   —— 数组为空时不显示提示以外的任何东西。
+================================================================= */
+const calcs = [
+  {
+    name: "幕墙围护结构风荷载计算",
+    file: "https://xiaodi-k.github.io/calc-templates/wind-load.html",
+    note: "全国 / 广东规范切换 · 全国台站及广东 21 市区县基本风压查表 · 广东 50 年风压与台风条件分档 · 高层墙面负压最低高度 · 内外压及面积折减 · 采光顶查表参考与极值核定提示 · 分步公式与规范依据",
+    ver: "1.3.1",
+    date: "2026-10-25"
+  },
+  {
+    name: "玻璃面板计算",
+    file: "https://xiaodi-k.github.io/calc-templates/glass-panel.html",
+    note: "高级模式可选 JGJ 102-2003 / ASTM E1300-16 独立应力法（含边缘加工、最小厚度、长期工程折减）· 10 种玻璃构造（含 G.G+G+G） · 四边简支 / 对边简支 / 四点支承（应力按 JGJ 102-2003 第 8.1.5 条，强度按边缘值）· PVB/SGP 夹胶（SGP 等效厚度按 DG/TJ 08-56-2019 上海地标第 11.2.8 条）· 强度与挠度校核 · 分步公式可展开 · 面板尺寸与支承平面图、玻璃配置断面图（t/ts 可在图上改）、荷载受力简图（上下端支座可选 Roller / PIN）",
+    ver: "1.19.6",
+    date: "2026-10-29"
+  },
+  {
+    name: "立柱（竖梃）承载力计算",
+    file: "https://xiaodi-k.github.io/calc-templates/mullion.html",
+    note: "13 种截面（含对称工字形、C 形）· 单跨/双跨/悬臂/飞边悬臂 · 全国·广东·海外分项系数 · 碳钢按壁厚取强度（GB 50017-2017）· 高级模式可调立柱倾角 α（图随角度倾斜，计入自重与面板重力分量；α<75° 按采光顶龙骨加活荷载）· 尺寸与荷载直接改图上的标注 · 基础/高级双模式 · 分步公式 · 玻璃肋减片验算",
+    ver: "1.12.9",
+    date: "2026-10-25"
+  },
+  {
+    name: "横梁计算",
+    file: "https://xiaodi-k.github.io/calc-templates/transom.html",
+    note: "七种标准截面（含 T 形、空心梯形）· 上部玻璃两点对称重力落点 · 上下板块梯形/三角形风荷载 · 图中输入跨度、板块高度、风压和落点 · 双向弯曲与挠度 · 钢 L/250、铝 L/180 · 分步公式",
+    ver: "1.5.4",
+    date: "2026-10-24"
+  },
+  {
+    name: "玻璃肋计算",
+    file: "https://xiaodi-k.github.io/calc-templates/mullion.html#glass-rib",
+    note: "吊式弯扭稳定 / 坐式压弯稳定 · 并入立柱 · 直接减去一片验算 · 共用玻璃及胶片图形输入 · 分步公式与 LaTeX 导出",
+    ver: "1.3.2",
+    date: "2026-10-25"
+  }
+];
+
+const listEl  = document.getElementById("list");
+const emptyEl = document.getElementById("empty");
+const countEl = document.getElementById("count");
+
+function render() {
+  listEl.innerHTML = "";
+
+  calcs.forEach((calc, i) => {
+    const li = document.createElement("li");
+    li.className = "card";
+
+    const a = document.createElement("a");
+    a.href = calc.file;
+
+    /* 标题行：序号 + 名称 …… 版本号 */
+    const top = document.createElement("div");
+    top.className = "top";
+
+    const idx = document.createElement("span");
+    idx.className = "idx";
+    idx.textContent = String(i + 1);
+    top.appendChild(idx);
+
+    const name = document.createElement("div");
+    name.className = "name";
+    name.textContent = calc.name;
+    top.appendChild(name);
+
+    if (calc.ver) {
+      const ver = document.createElement("span");
+      ver.className = "ver";
+      ver.textContent = "v" + calc.ver;
+      ver.title = calc.ver.split(".").length > 2
+        ? "版本 1.累计版本次数.图示改动次数"
+        : "版本 1.累计版本次数";
+      top.appendChild(ver);
+    }
+    a.appendChild(top);
+
+    if (calc.note) {
+      const note = document.createElement("div");
+      note.className = "note";
+      note.textContent = calc.note;
+      a.appendChild(note);
+    }
+
+    if (calc.date) {
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      meta.textContent = "最后更新 " + calc.date;
+      a.appendChild(meta);
+    }
+
+    li.appendChild(a);
+    listEl.appendChild(li);
+  });
+
+  emptyEl.hidden = calcs.length > 0;
+  countEl.textContent = calcs.length ? calcs.length + " 份模板" : "";
+}
+
+render();
+</script>
+<script src="feedback-config.js"></script>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
+<script src="feedback.js" defer></script>
+</body>
+</html>
